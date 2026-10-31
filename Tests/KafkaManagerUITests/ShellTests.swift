@@ -68,6 +68,31 @@ struct ShellViewModelTests {
         #expect(model.selection == id)
     }
 
+    @Test func topicListIsSharedPerSessionAndResetByProfileEdits() async {
+        let a = profile("a")
+        let shell = await makeShell([a])
+        let registry = ClusterSessions(secrets: InMemorySecretStore(), factory: { _ in FakeKafkaClient() })
+        let session = await registry.session(for: a)
+        let first = shell.topicList(for: session)
+        #expect(shell.topicList(for: session) === first)
+
+        var edited = a
+        edited.bootstrapServers = "other:9092"
+        await session.updateConnection(edited)
+        #expect(shell.topicList(for: session) !== first)
+    }
+
+    @Test func topicListIsDroppedWithItsConnection() async {
+        let a = profile("a")
+        let shell = await makeShell([a])
+        let registry = ClusterSessions(secrets: InMemorySecretStore(), factory: { _ in FakeKafkaClient() })
+        let session = await registry.session(for: a)
+        let first = shell.topicList(for: session)
+        await shell.connections.delete(id: a.id)
+        shell.pruneSelection()
+        #expect(shell.topicList(for: session) !== first)
+    }
+
     @Test func sectionsHaveDistinctTitlesAndPrompts() {
         #expect(Set(ShellSection.allCases.map(\.title)).count == 2)
         #expect(Set(ShellSection.allCases.map(\.detailPrompt)).count == 2)

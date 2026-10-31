@@ -30,8 +30,18 @@ final class AppEnvironment {
 
 /// The one place that decides which Kafka client the app talks to.
 enum DefaultClientFactory {
+    static let defaultDemoTopicCount = 200
+    private static let maxDemoTopicCount = 20_000
+
+    /// `KAFKAMANAGER_DEMO_TOPICS=5000` makes the demo cluster that big, for manual performance checks (dev only).
+    static let demoTopicCount: Int = {
+        let text = ProcessInfo.processInfo.environment["KAFKAMANAGER_DEMO_TOPICS"] ?? ""
+        guard let count = Int(text), (1...maxDemoTopicCount).contains(count) else { return defaultDemoTopicCount }
+        return count
+    }()
+
     /// Demo data for every profile. Replace with LiveKafkaClient in T60.
-    static let demo: ClientFactory = { _ in FakeKafkaClient.sampleData(topicCount: 200) }
+    static let demo: ClientFactory = { _ in FakeKafkaClient.sampleData(topicCount: demoTopicCount) }
 }
 
 extension AppEnvironment {

@@ -8,13 +8,17 @@ public struct ShellView: View {
     @Binding var formRequest: ConnectionFormRequest?
     let refreshToken: Int
 
+    /// ⌘R goes to whatever is on screen: the topic list when Topics is open, otherwise the connection list.
+    @State private var connectionRefresh = 0
+    @State private var topicRefresh = 0
+
     private enum Metrics {
         static let sidebarMin: Double = 240
         static let sidebarIdeal: Double = 280
         static let sidebarMax: Double = 380
-        static let contentMin: Double = 220
-        static let contentIdeal: Double = 260
-        static let contentMax: Double = 340
+        static let contentMin: Double = 300
+        static let contentIdeal: Double = 380
+        static let contentMax: Double = 640
     }
 
     public init(
@@ -31,15 +35,18 @@ public struct ShellView: View {
 
     public var body: some View {
         NavigationSplitView {
-            ConnectionListView(model: shell.connections, formRequest: $formRequest, refreshToken: refreshToken)
+            ConnectionListView(model: shell.connections, formRequest: $formRequest, refreshToken: connectionRefresh)
                 .navigationSplitViewColumnWidth(min: Metrics.sidebarMin, ideal: Metrics.sidebarIdeal, max: Metrics.sidebarMax)
         } content: {
-            ClusterColumn(shell: shell, sessions: sessions)
+            ClusterColumn(shell: shell, sessions: sessions, refreshToken: topicRefresh)
                 .navigationSplitViewColumnWidth(min: Metrics.contentMin, ideal: Metrics.contentIdeal, max: Metrics.contentMax)
         } detail: {
             DetailPlaceholder(section: shell.selectedSection, hasConnection: shell.selectedConnection != nil)
         }
         .onChange(of: shell.connections.state) { shell.pruneSelection() }
+        .onChange(of: refreshToken) {
+            if shell.selectedSection == .topics { topicRefresh += 1 } else { connectionRefresh += 1 }
+        }
     }
 }
 
@@ -62,10 +69,11 @@ private struct DetailPlaceholder: View {
 private struct ClusterColumn: View {
     @Bindable var shell: ShellViewModel
     let sessions: ClusterSessions
+    let refreshToken: Int
 
     var body: some View {
         if let connection = shell.selectedConnection {
-            ConnectedColumn(connection: connection, shell: shell, sessions: sessions)
+            ConnectedColumn(connection: connection, shell: shell, sessions: sessions, refreshToken: refreshToken)
                 .id(connection.id)
         } else {
             ContentUnavailableView("Select a connection", systemImage: "externaldrive")
@@ -93,8 +101,10 @@ private struct ConnectedColumn: View {
     let connection: ClusterConnection
     @Bindable var shell: ShellViewModel
     let sessions: ClusterSessions
+    let refreshToken: Int
 
     @State private var session: ClusterSession?
+    @State private var topics: TopicListViewModel?
     @State private var actionRequest: ActionRequest?
     @State private var actionCount = 0
     @State private var readOnlyRequest: ReadOnlyRequest?
@@ -106,15 +116,17 @@ private struct ConnectedColumn: View {
                 StatusArea(session: session, onAction: request)
                 Divider()
             }
-            List(selection: $shell.selectedSection) {
-                ForEach(ShellSection.allCases) { section in
-                    Label(section.title, systemImage: section.symbolName).tag(section)
-                }
-            }
+            sectionPicker
+            Divider()
+            sectionContent
         }
         .navigationTitle(connection.name)
         // Resolved in a task, not in body; a profile edit re-resolves and the registry resets the session.
-        .task(id: connection) { session = await sessions.session(for: connection) }
+        .task(id: connection) {
+            let resolved = await sessions.session(for: connection)
+            session = resolved
+            topics = shell.topicList(for: resolved)
+        }
         // Opening Topics or Groups is what connects; merely selecting the connection does not.
         .task(id: OpenRequest(section: shell.selectedSection, session: session.map(ObjectIdentifier.init))) {
             if shell.selectedSection != nil, let session { _ = try? await session.ensureConnected() }
@@ -129,6 +141,31 @@ private struct ConnectedColumn: View {
             case .connect: await session.connect()
             case .disconnect: await session.disconnect()
             }
+        }
+    }
+
+    /// Nothing is selected until the user picks one; picking is what connects.
+    private var sectionPicker: some View {
+        Picker("Section", selection: $shell.selectedSection) {
+            ForEach(ShellSection.allCases) { section in
+                Label(section.title, systemImage: section.symbolName).tag(Optional(section))
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(10)
+    }
+
+    @ViewBuilder private var sectionContent: some View {
+        switch shell.selectedSection {
+        case .topics:
+            if let topics { TopicListView(model: topics, refreshToken: refreshToken) } else { Color.clear }
+        case .groups:
+            ContentUnavailableView(
+                ShellSection.groups.title, systemImage: ShellSection.groups.symbolName,
+                description: Text("Consumer groups are not available yet."))
+        case nil:
+            ContentUnavailableView("Choose Topics or Consumer Groups", systemImage: "sidebar.left")
         }
     }
 

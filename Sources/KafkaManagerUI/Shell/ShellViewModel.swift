@@ -41,6 +41,9 @@ public final class ShellViewModel {
 
     private var section: ShellSection?
     private var sectionOwner: UUID?
+    /// One topic list per cluster profile, so its list, search and sort survive switching sections or clusters. Editing
+    /// the profile starts a fresh list, since it may now point at another cluster.
+    @ObservationIgnored private var topicLists: [UUID: (connection: ClusterConnection, model: TopicListViewModel)] = [:]
 
     public init(connections: ConnectionsViewModel) {
         self.connections = connections
@@ -62,8 +65,22 @@ public final class ShellViewModel {
         }
     }
 
+    public func topicList(for session: ClusterSession) -> TopicListViewModel {
+        let connection = session.connection
+        if let existing = topicLists[connection.id], existing.connection == connection, existing.model.belongs(to: session) {
+            return existing.model
+        }
+        let created = TopicListViewModel(session: session)
+        topicLists[connection.id] = (connection, created)
+        return created
+    }
+
     /// Clears a selection whose profile is gone, once the list is known. Does nothing while loading.
     public func pruneSelection() {
+        if let loaded = connections.state.value {
+            let ids = Set(loaded.map(\.id))
+            topicLists = topicLists.filter { ids.contains($0.key) }
+        }
         guard connections.selection != nil, connections.state.value != nil, selectedConnection == nil else { return }
         connections.selection = nil
     }
