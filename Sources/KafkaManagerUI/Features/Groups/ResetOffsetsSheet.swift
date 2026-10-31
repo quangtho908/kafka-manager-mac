@@ -166,6 +166,7 @@ struct ResetOffsetsSheet: View {
                 .width(min: Metrics.statusWidth)
             }
             .tableStyle(.inset(alternatesRowBackgrounds: true))
+            Text("Only partitions this group has committed to are listed.").font(.caption).foregroundStyle(.secondary)
         }
     }
 
