@@ -78,6 +78,13 @@ public final class ConnectionsViewModel {
         if selection == id { selection = nil }
     }
 
+    /// A form wired to the same stores, with the name check excluding the profile being edited.
+    public func makeFormViewModel(mode: ConnectionFormViewModel.Mode) -> ConnectionFormViewModel {
+        let edited: UUID?
+        if case .edit(let connection) = mode { edited = connection.id } else { edited = nil }
+        return ConnectionFormViewModel(mode: mode, store: store, secrets: secrets, existingNames: existingNames(excluding: edited))
+    }
+
     public func duplicateDraft(of connection: ClusterConnection) -> ConnectionFormViewModel.Mode {
         .duplicate(connection)
     }
