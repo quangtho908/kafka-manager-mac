@@ -61,11 +61,22 @@ public struct GroupDetail: Identifiable, Hashable, Sendable {
     public let state: String
     public let members: [GroupMemberInfo]
     public let lags: [PartitionLag]
+    /// Broker id of the group coordinator; nil when the client doesn't report it.
+    public let coordinatorId: Int?
+    public let coordinatorHost: String?
+    /// Partition assignment strategy ("range", "cooperative-sticky", …); nil for an empty group or when unknown.
+    public let assignor: String?
 
-    public init(id: String, state: String, members: [GroupMemberInfo], lags: [PartitionLag]) {
+    public init(
+        id: String, state: String, members: [GroupMemberInfo], lags: [PartitionLag],
+        coordinatorId: Int? = nil, coordinatorHost: String? = nil, assignor: String? = nil
+    ) {
         self.id = id
         self.state = state
         self.members = members
         self.lags = lags
+        self.coordinatorId = coordinatorId
+        self.coordinatorHost = coordinatorHost
+        self.assignor = assignor
     }
 }

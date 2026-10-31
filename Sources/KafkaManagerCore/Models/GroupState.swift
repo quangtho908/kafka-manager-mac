@@ -33,3 +33,13 @@ extension GroupSummary {
 extension GroupDetail {
     public var groupState: GroupState { GroupState(kafkaName: state) }
 }
+
+extension KafkaError {
+    /// Kafka's GROUP_ID_NOT_FOUND (69): the group was deleted or never existed.
+    public static let groupIdNotFoundCode = 69
+
+    public var isUnknownGroup: Bool {
+        if case .clusterError(let code, _) = self { return code == Self.groupIdNotFoundCode }
+        return false
+    }
+}

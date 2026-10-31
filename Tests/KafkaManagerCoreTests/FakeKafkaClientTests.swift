@@ -235,7 +235,7 @@ private func collect(_ stream: AsyncThrowingStream<KafkaMessage, Error>) async t
     let groups = try await fake.listGroups()
     #expect(groups.map(\.id) == groups.map(\.id).sorted())
     #expect(groups.count == FakeKafkaClient.sampleGroupCount)
-    #expect(groups.first { $0.id == "orders-service" }?.memberCount == 1)
+    #expect(groups.first { $0.id == "orders-service" }?.memberCount == 2)
     #expect(groups.contains { $0.id == "payments-service" })
 }
 

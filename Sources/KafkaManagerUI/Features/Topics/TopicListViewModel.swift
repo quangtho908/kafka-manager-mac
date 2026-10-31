@@ -31,6 +31,7 @@ public final class TopicListViewModel {
 
     @ObservationIgnored private let session: ClusterSession
     @ObservationIgnored private let now: @MainActor () -> Date
+    @ObservationIgnored private let openGroup: @MainActor (String) -> Void
     @ObservationIgnored private let staleAfter: TimeInterval
     @ObservationIgnored private var loadedAt: Date?
     @ObservationIgnored private var loadID = 0
@@ -60,9 +61,11 @@ public final class TopicListViewModel {
     public init(
         session: ClusterSession,
         staleAfter: Duration = TopicListViewModel.defaultStaleAfter,
-        now: @escaping @MainActor () -> Date = { Date() }
+        now: @escaping @MainActor () -> Date = { Date() },
+        openGroup: @escaping @MainActor (String) -> Void = { _ in }
     ) {
         self.session = session
+        self.openGroup = openGroup
         self.staleAfter = Double(staleAfter.components.seconds)
         self.now = now
     }
@@ -137,9 +140,10 @@ public final class TopicListViewModel {
     /// The detail model for a topic. Only the current one is kept, so browsing never accumulates models.
     public func detailModel(for topic: String) -> TopicDetailViewModel {
         if let detail, detail.topicName == topic { return detail }
-        let created = TopicDetailViewModel(session: session, topicName: topic) { [weak self] name in
-            await self?.topicWasRemoved(name)
-        }
+        let created = TopicDetailViewModel(
+            session: session, topicName: topic,
+            onTopicGone: { [weak self] name in await self?.topicWasRemoved(name) },
+            openGroup: openGroup)
         detail?.stopMessages()
         detail = created
         return created

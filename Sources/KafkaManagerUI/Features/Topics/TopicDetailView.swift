@@ -53,6 +53,7 @@ struct TopicDetailView: View {
                     case .partitions: PartitionsTable(partitions: detail.partitions)
                     case .config: ConfigTable(entries: detail.configEntries)
                     case .messages: MessagesView(model: model.messages)
+                    case .groups: EmptyView()
                     }
                 }
             }

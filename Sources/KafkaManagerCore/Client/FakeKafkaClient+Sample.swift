@@ -79,15 +79,17 @@ extension FakeKafkaClient {
     /// The other 38 cycle through all states; their lag depends on the index so totals differ.
     private static func sampleGroups(end: Int64) -> [GroupDetail] {
         let member = GroupMemberInfo(id: "member-1", clientId: "sample-client", host: "/127.0.0.1", assignments: ["orders": [0, 1, 2]])
+        // A member that joined but holds no partitions (more consumers than partitions).
+        let idleMember = GroupMemberInfo(id: "member-2", clientId: "idle-client", host: "/127.0.0.2")
         var groups = [
-            GroupDetail(id: "orders-service", state: "Stable", members: [member], lags: [
+            GroupDetail(id: "orders-service", state: "Stable", members: [member, idleMember], lags: [
                 PartitionLag(topic: "orders", partition: 0, committedOffset: end - 5, startOffset: 0, endOffset: end),
                 PartitionLag(topic: "orders", partition: 1, committedOffset: end, startOffset: 0, endOffset: end),
                 PartitionLag(topic: "orders", partition: 2, committedOffset: nil, startOffset: 0, endOffset: end),
-            ]),
+            ], coordinatorId: 1, coordinatorHost: "broker-1:9092", assignor: "range"),
             GroupDetail(id: "payments-service", state: "Empty", members: [], lags: [
                 PartitionLag(topic: "payments", partition: 0, committedOffset: end + 20, startOffset: 0, endOffset: end),
-            ]),
+            ], coordinatorId: 2, coordinatorHost: "broker-2:9092"),
         ]
         let states = ["Stable", "PreparingRebalance", "CompletingRebalance", "Empty", "Dead", "Stable", "Stable", "Empty"]
         for index in 2..<sampleGroupCount {
@@ -95,7 +97,7 @@ extension FakeKafkaClient {
             let memberCount = (state == "Stable" || state.hasSuffix("Rebalance")) ? 1 + index % 4 : 0
             let members = (0..<memberCount).map { number in
                 GroupMemberInfo(id: "member-\(index)-\(number)", clientId: "client-\(index)", host: "/10.0.0.\(number + 1)",
-                                assignments: ["orders": [number % 3]])
+                                assignments: number < 3 ? ["\(index % 2 == 0 ? "orders" : "payments")": [number]] : [:])
             }
             let topic = index % 2 == 0 ? "orders" : "payments"
             let lags = (0..<3).map { partition in
@@ -104,7 +106,11 @@ extension FakeKafkaClient {
                     committedOffset: Int64(index * partition) % 7 == 0 ? nil : max(0, end - Int64(index * (partition + 1))),
                     startOffset: 0, endOffset: end)
             }
-            groups.append(GroupDetail(id: String(format: "sample-group-%02d", index), state: state, members: members, lags: lags))
+            let assignors = ["range", "roundrobin", "cooperative-sticky"]
+            groups.append(GroupDetail(
+                id: String(format: "sample-group-%02d", index), state: state, members: members, lags: lags,
+                coordinatorId: index % 3 + 1, coordinatorHost: "broker-\(index % 3 + 1):9092",
+                assignor: members.isEmpty ? nil : assignors[index % assignors.count]))
         }
         return groups
     }

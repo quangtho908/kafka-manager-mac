@@ -77,9 +77,18 @@ public final class ShellViewModel {
         if let existing = topicLists[connection.id], existing.connection == connection, existing.model.belongs(to: session) {
             return existing.model
         }
-        let created = TopicListViewModel(session: session)
+        let created = TopicListViewModel(session: session, openGroup: { [weak self] group in
+            self?.openGroup(group, session: session)
+        })
         topicLists[connection.id] = (connection, created)
         return created
+    }
+
+    /// Jumps from a topic to a group: switches to the Groups section of that cluster with the group selected. The
+    /// section opening is what connects, as always; this only sets the selection.
+    public func openGroup(_ group: String, session: ClusterSession) {
+        groupList(for: session).selection = group
+        selectedSection = .groups
     }
 
     /// The group list of the selected connection, once its session has been resolved.

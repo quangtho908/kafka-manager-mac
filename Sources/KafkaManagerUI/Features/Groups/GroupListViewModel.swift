@@ -57,7 +57,15 @@ public final class GroupListViewModel {
     /// Group id.
     public var selection: String?
 
+    /// Total lag per group, for the groups whose lag was loaded on request. Cleared whenever the list is reloaded.
+    public private(set) var lagTotals: [String: Int64] = [:]
+    public private(set) var lagLoading = false
+    /// Groups that could not be described while loading lag.
+    public private(set) var lagUnreadable: Set<String> = []
+
     @ObservationIgnored private let session: ClusterSession
+    @ObservationIgnored private var detail: GroupDetailViewModel?
+    @ObservationIgnored private var lagGeneration = 0
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let staleAfter: TimeInterval
     @ObservationIgnored private var loadedAt: Date?
@@ -121,6 +129,8 @@ public final class GroupListViewModel {
             state = .loaded(groups)
             loadedAt = now()
             dataRevision += 1
+            lagTotals = [:]
+            lagUnreadable = []
             if let selection, !groups.contains(where: { $0.id == selection }) { self.selection = nil }
         case .failure(let error):
             state = .failed(message: Self.message(for: error))
@@ -132,6 +142,46 @@ public final class GroupListViewModel {
         case let error as KafkaError: error.userMessage
         case let error as ClusterSessionError: error.userMessage
         default: String(localized: "Couldn't load the consumer groups.")
+        }
+    }
+
+    // MARK: Detail
+
+    /// The detail model for a group. Only the current one is kept, so browsing never accumulates models.
+    public func detailModel(for group: String) -> GroupDetailViewModel {
+        if let detail, detail.groupId == group { return detail }
+        let created = GroupDetailViewModel(session: session, groupId: group, onGroupGone: { [weak self] _ in await self?.refresh() })
+        detail = created
+        return created
+    }
+
+    // MARK: Lazy lag
+
+    /// "Lag loaded for 12 of 40 groups", empty until something was loaded.
+    public var lagStatusText: String {
+        let loaded = lagTotals.count
+        guard loaded > 0 || lagLoading else { return "" }
+        let visible = visibleGroups.count
+        return String(localized: "Lag loaded for \(loaded) of \(visible) groups")
+    }
+
+    /// Describes the visible groups that have no lag yet, at most `BoundedDescriber.defaultLimit` at a time, and keeps
+    /// each one's total. Cancelling the caller stops starting new calls. Groups already loaded are not asked again.
+    public func loadVisibleLag() async {
+        let ids = visibleGroups.map(\.id).filter { lagTotals[$0] == nil && !lagUnreadable.contains($0) }
+        guard !ids.isEmpty, !lagLoading else { return }
+        lagGeneration += 1
+        let generation = lagGeneration
+        lagLoading = true
+        defer { if generation == lagGeneration { lagLoading = false } }
+        let client: any KafkaClient
+        do { client = try await session.ensureConnected() } catch { return }
+        await BoundedDescriber.run(ids: ids, describe: { try await client.describeGroup($0) }) { [weak self] item in
+            guard let self, generation == self.lagGeneration else { return }
+            switch item.result {
+            case .success(let detail): self.lagTotals[item.id] = GroupLag.total(detail.lags)
+            case .failure: self.lagUnreadable.insert(item.id)
+            }
         }
     }
 

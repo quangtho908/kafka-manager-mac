@@ -10,18 +10,26 @@ public final class TopicDetailViewModel {
     /// True while a reload runs over data that is already showing.
     public private(set) var isRefreshing = false
 
-    public enum Tab: Hashable, Sendable { case partitions, config, messages }
+    public enum Tab: Hashable, Sendable { case partitions, config, messages, groups }
 
     public var tab = Tab.partitions
 
     @ObservationIgnored private let session: ClusterSession
     @ObservationIgnored private var messagesModel: MessagesViewModel?
+    @ObservationIgnored private var groupsModel: TopicGroupsViewModel?
+    /// Opens a group's detail in the Groups section.
+    @ObservationIgnored public let openGroup: @MainActor (String) -> Void
     /// Called once when the broker says the topic no longer exists, so the list can refresh and drop it.
     @ObservationIgnored private let onTopicGone: @MainActor (String) async -> Void
     @ObservationIgnored private var loadID = 0
 
-    public init(session: ClusterSession, topicName: String, onTopicGone: @escaping @MainActor (String) async -> Void = { _ in }) {
+    public init(
+        session: ClusterSession, topicName: String,
+        onTopicGone: @escaping @MainActor (String) async -> Void = { _ in },
+        openGroup: @escaping @MainActor (String) -> Void = { _ in }
+    ) {
         self.session = session
+        self.openGroup = openGroup
         self.topicName = topicName
         self.onTopicGone = onTopicGone
     }
@@ -33,6 +41,14 @@ public final class TopicDetailViewModel {
             self?.state.value?.partitions ?? []
         })
         messagesModel = created
+        return created
+    }
+
+    /// The groups consuming this topic; created on first use, scanned only while its tab is open.
+    public var groups: TopicGroupsViewModel {
+        if let groupsModel { return groupsModel }
+        let created = TopicGroupsViewModel(session: session, topicName: topicName)
+        groupsModel = created
         return created
     }
 
