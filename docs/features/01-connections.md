@@ -42,7 +42,7 @@ CREATE TABLE connections (
 
 ```swift
 protocol ConnectionStore { func load() async throws -> [ClusterConnection]; func save(_ c: ClusterConnection) async throws; func delete(id: UUID) async throws }
-protocol SecretStore { func password(for id: UUID) throws -> String?; func setPassword(_:for:) throws; func delete(for:) throws }
+protocol SecretStore: Sendable { func password(for id: UUID) async throws -> String?; func setPassword(_ password: String, for id: UUID) async throws; func deletePassword(for id: UUID) async throws }
 ```
 
 ## Edge case
