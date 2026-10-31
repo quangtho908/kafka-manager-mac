@@ -95,3 +95,18 @@ struct ConnectionPresentationTests {
         #expect(first.connectionID != second.connectionID)
     }
 }
+
+@Suite("EnvironmentBadgeStyle")
+struct EnvironmentBadgeStyleTests {
+    @Test(arguments: [EnvironmentTone.calm, .caution, .danger])
+    func normalBackgroundKeepsTheToneAndASelectedRowUsesThePrimaryStyle(tone: EnvironmentTone) {
+        #expect(EnvironmentBadgeStyle.style(for: tone, onProminentBackground: false) == .tone(tone))
+        #expect(EnvironmentBadgeStyle.style(for: tone, onProminentBackground: true) == .onSelection)
+    }
+
+    @Test func everyToneHasItsOwnColor() {
+        let colors = [EnvironmentTone.calm, .caution, .danger].map { EnvironmentBadgeStyle.tone($0).color }
+        #expect(Set(colors).count == 3)
+        #expect(!colors.contains(EnvironmentBadgeStyle.onSelection.color))
+    }
+}

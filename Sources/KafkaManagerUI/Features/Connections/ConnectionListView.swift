@@ -122,21 +122,45 @@ private struct ConnectionRow: View {
     }
 }
 
-/// Environment label with icon; the text is always shown so the color is never the only cue.
+/// Environment label with icon; the text is always shown so the color is never the only cue. On a selected row
+/// (`backgroundProminence == .increased`) the tone color would sit on the selection color, so both parts use the
+/// primary style there and the shape and the label carry the meaning.
 struct EnvironmentBadge: View {
     let environment: ClusterConnection.Environment
 
-    var body: some View {
-        Label(environment.label, systemImage: environment.symbolName)
-            .font(.caption)
-            .foregroundStyle(color)
+    @Environment(\.backgroundProminence) private var prominence
+
+    private enum Metrics {
+        static let spacing: Double = 4
     }
 
-    private var color: Color {
-        switch environment.tone {
-        case .calm: .green
-        case .caution: .orange
-        case .danger: .red
+    var body: some View {
+        let style = EnvironmentBadgeStyle.style(for: environment.tone, onProminentBackground: prominence == .increased)
+        HStack(spacing: Metrics.spacing) {
+            Image(systemName: environment.symbolName).accessibilityHidden(true)
+            Text(environment.label)
+        }
+        .font(.caption)
+        .foregroundStyle(style.color)
+    }
+}
+
+/// Which color the badge uses; pure so it is tested without a view.
+enum EnvironmentBadgeStyle: Equatable {
+    case tone(EnvironmentTone)
+    /// On a selected row: the system primary style, which stays readable on the selection color.
+    case onSelection
+
+    static func style(for tone: EnvironmentTone, onProminentBackground: Bool) -> EnvironmentBadgeStyle {
+        onProminentBackground ? .onSelection : .tone(tone)
+    }
+
+    var color: Color {
+        switch self {
+        case .onSelection: .primary
+        case .tone(.calm): .green
+        case .tone(.caution): .orange
+        case .tone(.danger): .red
         }
     }
 }
