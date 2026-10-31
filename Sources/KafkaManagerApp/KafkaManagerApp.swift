@@ -4,6 +4,7 @@ import KafkaManagerUI
 
 @main
 struct KafkaManagerApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var environment = AppEnvironment()
     @State private var formRequest: ConnectionFormRequest?
     @State private var refreshToken = 0
