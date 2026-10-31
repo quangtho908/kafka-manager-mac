@@ -72,7 +72,10 @@ private struct TopicDetailHost: View {
     var body: some View {
         Group {
             if let model, model.topicName == topic {
-                TopicDetailView(model: model).id(topic)
+                TopicDetailView(
+                    model: model,
+                    delete: (gate: list.writeGate, isBusy: list.isDeleting, action: { list.requestDelete(of: topic) })
+                ).id(topic)
             } else {
                 Color.clear
             }

@@ -1,25 +1,35 @@
 import SwiftUI
 import KafkaManagerCore
 
+private enum Metrics {
+    static let spacing: Double = 8
+    static let padding: Double = 12
+    static let tableInset: Double = 12
+    static let tableGap: Double = 6
+    static let idWidth: ClosedRange<Double> = 30...60
+    static let leaderWidth: ClosedRange<Double> = 40...70
+    static let statusMin: Double = 100
+    static let flagMin: Double = 100
+}
+
 /// Header plus Partitions / Config tabs for one topic.
-public struct TopicDetailView: View {
+struct TopicDetailView: View {
     let model: TopicDetailViewModel
+    /// nil hides the delete button; otherwise it is shown, disabled with a reason when writes are not allowed.
+    let delete: (gate: WriteGate, isBusy: Bool, action: () -> Void)?
 
     private enum Tab: Hashable { case partitions, config }
 
     @State private var tab = Tab.partitions
     @State private var refreshCount = 0
 
-    private enum Metrics {
-        static let spacing: Double = 8
-        static let padding: Double = 12
-    }
 
-    public init(model: TopicDetailViewModel) {
+    init(model: TopicDetailViewModel, delete: (gate: WriteGate, isBusy: Bool, action: () -> Void)? = nil) {
         self.model = model
+        self.delete = delete
     }
 
-    public var body: some View {
+    var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
@@ -70,6 +80,13 @@ public struct TopicDetailView: View {
             }
             .help(Text("Refresh this topic"))
             .disabled(model.isRefreshing || model.state.isLoading)
+            if let delete {
+                Button(role: .destructive, action: delete.action) {
+                    Label("Delete Topic…", systemImage: "trash")
+                }
+                .help(Text(delete.gate.disabledReason ?? String(localized: "Delete this topic")))
+                .disabled(!delete.gate.allowsWrites || delete.isBusy)
+            }
         }
         .padding(Metrics.padding)
     }
@@ -94,12 +111,12 @@ private struct PartitionsTable: View {
                 Label(summary, systemImage: PartitionFlag.underReplicated.symbolName)
                     .foregroundStyle(.orange)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
+                    .padding(.horizontal, Metrics.tableInset)
+                    .padding(.bottom, Metrics.tableGap)
             }
             Table(rows) {
-                TableColumn("ID") { Text($0.id, format: .number.grouping(.never)).monospacedDigit() }.width(min: 30, ideal: 40, max: 60)
-                TableColumn("Leader") { Text($0.leaderText).monospacedDigit() }.width(min: 40, ideal: 50, max: 70)
+                TableColumn("ID") { Text($0.id, format: .number.grouping(.never)).monospacedDigit() }.width(min: Metrics.idWidth.lowerBound, max: Metrics.idWidth.upperBound)
+                TableColumn("Leader") { Text($0.leaderText).monospacedDigit() }.width(min: Metrics.leaderWidth.lowerBound, max: Metrics.leaderWidth.upperBound)
                 TableColumn("Replicas") { Text($0.replicasText).monospacedDigit() }
                 TableColumn("ISR") { Text($0.isrText).monospacedDigit() }
                 TableColumn("Start") { Text($0.startOffset, format: .number).monospacedDigit() }
@@ -113,7 +130,7 @@ private struct PartitionsTable: View {
                         Label(row.flagsText, systemImage: row.flags[0].symbolName).foregroundStyle(.orange)
                     }
                 }
-                .width(min: 100)
+                .width(min: Metrics.statusMin)
             }
             .tableStyle(.inset(alternatesRowBackgrounds: true))
         }
@@ -133,8 +150,8 @@ private struct ConfigTable: View {
                 Text(rows.count == 1 ? String(localized: "1 setting") : String(localized: "\(rows.count) settings"))
                     .font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 6)
+            .padding(.horizontal, Metrics.tableInset)
+            .padding(.bottom, Metrics.tableGap)
             if rows.isEmpty {
                 ContentUnavailableView("No settings", systemImage: "slider.horizontal.3")
             } else {
@@ -152,7 +169,7 @@ private struct ConfigTable: View {
                             Label("Non-default", systemImage: "slider.horizontal.3").foregroundStyle(.blue)
                         }
                     }
-                    .width(min: 100, ideal: 110)
+                    .width(min: Metrics.flagMin)
                 }
                 .tableStyle(.inset(alternatesRowBackgrounds: true))
             }

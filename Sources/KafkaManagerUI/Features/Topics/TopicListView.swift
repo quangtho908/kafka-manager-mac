@@ -8,6 +8,7 @@ public struct TopicListView: View {
     let refreshToken: Int
 
     @State private var refreshCount = 0
+    @State private var showingCreate = false
     @FocusState private var searchFocused: Bool
 
     private enum Metrics {
@@ -36,6 +37,9 @@ public struct TopicListView: View {
                 .padding(Metrics.padding)
                 .background(Color.orange.opacity(0.18))
             }
+            if let message = model.deleteError {
+                ErrorBanner(message: message, onDismiss: { model.dismissDeleteError() })
+            }
             Divider()
             StateView(
                 state: model.state,
@@ -61,6 +65,10 @@ public struct TopicListView: View {
         }
         .onChange(of: refreshToken) { refreshCount += 1 }
         .focusedSceneValue(\.findAction, focusSearch)
+        .sheet(isPresented: $showingCreate) { CreateTopicSheet(model: model.makeCreateForm()) }
+        .sheet(item: $model.pendingDelete) { confirmation in
+            DestructiveConfirmationSheet(confirmation: confirmation, gate: model.writeGate) { model.confirmPendingDelete() }
+        }
     }
 
     private func focusSearch() { searchFocused = true }
@@ -72,6 +80,13 @@ public struct TopicListView: View {
                     .textFieldStyle(.roundedBorder)
                     .focused($searchFocused)
                     .accessibilityLabel(Text("Search topics"))
+                Button {
+                    showingCreate = true
+                } label: {
+                    Label("New Topic", systemImage: "plus").labelStyle(.iconOnly)
+                }
+                .help(Text(model.writeGate.disabledReason ?? String(localized: "New topic")))
+                .disabled(!model.writeGate.allowsWrites)
                 Button {
                     refreshCount += 1
                 } label: {
@@ -121,6 +136,12 @@ public struct TopicListView: View {
             .width(min: Metrics.replicationMin, max: Metrics.replicationMax)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .contextMenu(forSelectionType: String.self) { names in
+            if let name = names.first, names.count == 1 {
+                Button("Delete Topic…", role: .destructive) { model.requestDelete(of: name) }
+                    .disabled(!model.writeGate.allowsWrites || model.isDeleting)
+            }
+        }
     }
 
     /// The view model owns the sort; the table's header just reads and writes it.

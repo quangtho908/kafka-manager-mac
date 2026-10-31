@@ -23,6 +23,11 @@ public final class TopicListViewModel {
     public var selection: String?
     /// Set when the selected topic turned out to be deleted by someone else; stays until dismissed.
     public private(set) var removedTopicNotice: String?
+    /// The delete awaiting the user's typed confirmation; the view presents it as a sheet.
+    public var pendingDelete: DestructiveConfirmation?
+    public private(set) var isDeleting = false
+    /// Message of the last failed delete, until dismissed or the next delete starts.
+    public private(set) var deleteError: String?
 
     @ObservationIgnored private let session: ClusterSession
     @ObservationIgnored private let now: @MainActor () -> Date
@@ -32,6 +37,7 @@ public final class TopicListViewModel {
     /// Bumped whenever `state` gets a new list, so cached results know the data changed.
     @ObservationIgnored private var dataRevision = 0
     @ObservationIgnored private var detail: TopicDetailViewModel?
+    @ObservationIgnored private var deleteTask: Task<Void, Never>?
     @ObservationIgnored private var sortedCache: SortedCache?
     @ObservationIgnored private var visibleCache: VisibleCache?
 
@@ -62,6 +68,69 @@ public final class TopicListViewModel {
     }
 
     public func belongs(to other: ClusterSession) -> Bool { session === other }
+
+    // MARK: Create and delete
+
+    public var writeGate: WriteGate { WriteGate(isReadOnly: session.isReadOnly) }
+
+    public func makeCreateForm() -> CreateTopicFormViewModel {
+        CreateTopicFormViewModel(
+            session: session,
+            existingNames: { [weak self] in Set(self?.state.value?.map(\.name) ?? []) },
+            onCreated: { [weak self] name in
+                await self?.refresh()
+                self?.selection = name
+            })
+    }
+
+    /// Opens the confirmation for deleting `topic`. Nothing is offered on a read-only cluster.
+    public func requestDelete(of topic: String) {
+        guard writeGate.allowsWrites, !isDeleting else { return }
+        deleteError = nil
+        pendingDelete = DestructiveConfirmation(
+            title: String(localized: "Delete topic?"),
+            clusterName: session.connection.name,
+            environment: session.connection.environment,
+            objectKind: String(localized: "topic"),
+            objectName: topic,
+            actionTitle: String(localized: "Delete Topic"),
+            consequences: String(localized: "The topic and all of its messages are deleted permanently from \(session.connection.name). This cannot be undone."))
+    }
+
+    /// Called by the confirmation sheet. The delete is owned by this model, so closing the sheet or switching
+    /// sections does not cancel a request that is already on its way.
+    public func confirmPendingDelete() {
+        guard let topic = pendingDelete?.objectName, deleteTask == nil else { return }
+        deleteTask = Task { [weak self] in
+            await self?.delete(topic)
+            self?.deleteTask = nil
+        }
+    }
+
+    /// Deletes on the broker first; only after it succeeds is the list refreshed and the selection cleared. A failure
+    /// leaves the list as it was and sets `deleteError`.
+    public func delete(_ topic: String) async {
+        guard !isDeleting else { return }
+        guard writeGate.allowsWrites else {
+            deleteError = KafkaError.readOnly(clusterName: session.connection.name).userMessage
+            return
+        }
+        isDeleting = true
+        deleteError = nil
+        do {
+            let client = try await session.ensureConnected()
+            try await client.deleteTopic(topic)
+        } catch {
+            isDeleting = false
+            deleteError = Self.message(for: error)
+            return
+        }
+        isDeleting = false
+        if selection == topic { selection = nil }
+        await refresh()
+    }
+
+    public func dismissDeleteError() { deleteError = nil }
 
     // MARK: Detail
 
