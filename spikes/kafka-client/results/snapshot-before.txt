@@ -1,0 +1,3 @@
+groups: ["SyncInvoiceOfflineLocal[Empty]"]
+  SyncInvoiceOfflineLocal: [(key: "tenant_sync/1", value: 148)]
+topics: ["__consumer_offsets", "sync_offline_invoice", "tenant_sync"]

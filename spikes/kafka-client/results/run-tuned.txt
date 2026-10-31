@@ -1,0 +1,30 @@
+== librdkafka 2.16.0 | TUNED buffers | broker localhost:9092
+RSS     5.7 MB | footprint     1.5 MB | threads  1 | process start (before any Kafka call)
+  [    2.0 ms] create admin client (producer-type handle, no explicit connect)
+RSS     9.2 MB | footprint     2.5 MB | threads  4 | after creating client (no request yet)
+  [   64.0 ms] listTopics (all)
+  topics on broker: 4
+RSS     9.6 MB | footprint     2.8 MB | threads  4 | after connect + listTopics
+  [    4.0 ms] describeTopic spike-orders
+  partition 0: leader 1 replicas 1 isr 1 low 0 high 20000 count 20000
+  partition 1: leader 1 replicas 1 isr 1 low 0 high 20000 count 20000
+  partition 2: leader 1 replicas 1 isr 1 low 0 high 20000 count 20000
+  groups before reads: ["SyncInvoiceOfflineLocal", "spike-g"]
+  read timing: first message after 0.005890459 seconds, 10 messages after 0.005898292 seconds, consumer_close took 9.375e-05 seconds
+  [   71.0 ms] read 10 messages (partition 0, earliest)
+  got 10 messages, 20480 bytes
+RSS    11.8 MB | footprint     4.6 MB | threads  4 | after 10-message consumer closed
+RSS    12.0 MB | footprint     4.9 MB | threads  8 | 500-read: consumer still open, 500 messages read
+  read timing: first message after 0.008857833 seconds, 500 messages after 0.063052417 seconds, consumer_close took 0.000175125 seconds
+  [ 3130.0 ms] read 500 messages (3 partitions, earliest; create+assign+poll+close)
+  got 500 messages, 1024000 bytes
+RSS    11.9 MB | footprint     4.8 MB | threads  4 | after 500-message consumer closed+destroyed
+  groups after reads: ["SyncInvoiceOfflineLocal", "spike-g"] -> unchanged: true
+  read timing: first message after 0.006854292 seconds, 5 messages after 0.00685975 seconds, consumer_close took 0.000104458 seconds
+  groups with demo group: ["SyncInvoiceOfflineLocal[Empty]", "spike-g[Empty]"]
+  lag spike-g spike-orders/0: committed 5 end 20000 lag 19995
+  lag spike-g spike-orders/1: committed none end 20000 lag no offset -> 20000
+  lag spike-g spike-orders/2: committed none end 20000 lag no offset -> 20000
+  [    0.0 ms] destroy admin client
+RSS    12.0 MB | footprint     4.8 MB | threads  1 | after destroying all clients
+peak RSS (ru_maxrss) 12.1 MB

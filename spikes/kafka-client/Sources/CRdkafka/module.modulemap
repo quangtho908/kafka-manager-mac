@@ -1,0 +1,4 @@
+module CRdkafka [system] {
+    header "../../vendor/install/include/librdkafka/rdkafka.h"
+    export *
+}

@@ -1,0 +1,30 @@
+== librdkafka 2.16.0 | DEFAULT buffers | broker localhost:9092
+RSS     5.6 MB | footprint     1.5 MB | threads  1 | process start (before any Kafka call)
+  [    1.0 ms] create admin client (producer-type handle, no explicit connect)
+RSS     9.2 MB | footprint     2.5 MB | threads  4 | after creating client (no request yet)
+  [   59.0 ms] listTopics (all)
+  topics on broker: 4
+RSS     9.7 MB | footprint     2.8 MB | threads  4 | after connect + listTopics
+  [    2.0 ms] describeTopic spike-orders
+  partition 0: leader 1 replicas 1 isr 1 low 0 high 20000 count 20000
+  partition 1: leader 1 replicas 1 isr 1 low 0 high 20000 count 20000
+  partition 2: leader 1 replicas 1 isr 1 low 0 high 20000 count 20000
+  groups before reads: ["SyncInvoiceOfflineLocal"]
+  read timing: first message after 0.003520083 seconds, 10 messages after 0.003525666 seconds, consumer_close took 0.000125125 seconds
+  [   63.0 ms] read 10 messages (partition 0, earliest)
+  got 10 messages, 20480 bytes
+RSS    11.9 MB | footprint     4.7 MB | threads  4 | after 10-message consumer closed
+RSS    91.9 MB | footprint    84.8 MB | threads  8 | 500-read: consumer still open, 500 messages read
+  read timing: first message after 0.002370833 seconds, 500 messages after 0.005472125 seconds, consumer_close took 0.005457708 seconds
+  [ 3071.0 ms] read 500 messages (3 partitions, earliest; create+assign+poll+close)
+  got 500 messages, 1024000 bytes
+RSS    91.9 MB | footprint    84.8 MB | threads  4 | after 500-message consumer closed+destroyed
+  groups after reads: ["SyncInvoiceOfflineLocal"] -> unchanged: true
+  read timing: first message after 0.004726417 seconds, 5 messages after 0.004771084 seconds, consumer_close took 0.00017 seconds
+  groups with demo group: ["SyncInvoiceOfflineLocal[Empty]", "spike-g[Empty]"]
+  lag spike-g spike-orders/0: committed 5 end 20000 lag 19995
+  lag spike-g spike-orders/1: committed none end 20000 lag no offset -> 20000
+  lag spike-g spike-orders/2: committed none end 20000 lag no offset -> 20000
+  [    0.0 ms] destroy admin client
+RSS    94.0 MB | footprint    86.8 MB | threads  1 | after destroying all clients
+peak RSS (ru_maxrss) 94.1 MB
