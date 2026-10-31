@@ -7,12 +7,16 @@ Yêu cầu từ người dùng (2026-10-31): **app nhẹ, mở lên không lag, 
 | # | Chỉ số | Ngân sách | Cách đo |
 |---|---|---|---|
 | P1 | Khởi động nguội đến khi cửa sổ có thể tương tác | ≤ 0.5 s | `time` từ lúc `open` đến khi vẽ xong cửa sổ đầu; Instruments (App Launch) |
-| P2 | RAM khi mở app, chưa kết nối cluster nào | ≤ 60 MB RSS | `ps -o rss`, Activity Monitor (Real Memory) sau 30 s idle |
-| P3 | RAM khi kết nối 1 cluster, xem danh sách topic (5000 topic) | ≤ 100 MB | như trên |
-| P4 | RAM khi hiển thị 500 message (mỗi cái ≤ 10 KB) | ≤ 150 MB; không tăng khi để mở 10 phút | như trên + Instruments (Allocations/Leaks) |
+| P2 | RAM khi mở app, chưa kết nối cluster nào | ≤ 40 MB **phys_footprint** | `footprint -p <pid>` (cột Memory của Activity Monitor) sau 30 s idle |
+| P3 | RAM khi kết nối 1 cluster, xem danh sách topic (5000 topic) | ≤ 60 MB phys_footprint | như trên |
+| P4 | RAM khi hiển thị 500 message (mỗi cái ≤ 10 KB) | ≤ 100 MB phys_footprint; không tăng khi để mở 10 phút | như trên + Instruments (Allocations/Leaks) |
 | P5 | CPU khi idle (không thao tác, không tail) | ≈ 0% (không có timer/poll nền) | Activity Monitor, Instruments (Time Profiler) |
 | P6 | Mở danh sách 5000 topic, cuộn, tìm kiếm | không rớt khung hình rõ rệt; lọc ≤ 100 ms | Instruments (SwiftUI), thủ công |
 | P7 | Kích thước bản `.app` | ≤ 40 MB (kể cả thư viện Kafka) | `du -sh` |
+
+## Đơn vị đo bộ nhớ (chốt 2026-10-31, sau T13b)
+
+Dùng **phys_footprint** (`footprint -p`), không dùng RSS. RSS tính cả các framework hệ thống dùng chung nên một cửa sổ SwiftUI trống đã ~85 MB RSS nhưng chỉ ~21 MB phys_footprint (đo ở T13b, build release, macOS 26) — chỉ footprint phản ánh phần app thật sự tốn. Số P2–P4 ở trên là đề xuất dựa trên baseline này, sẽ chốt lại với số đo thật; spike T04 đã ghi cả hai (librdkafka đã giảm buffer thêm ~5 MB footprint).
 
 ## Nguyên tắc thiết kế để đạt ngân sách
 
