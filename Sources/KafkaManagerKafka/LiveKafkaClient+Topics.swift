@@ -29,15 +29,6 @@ extension LiveKafkaClient {
         }.sorted { $0.id < $1.id }
     }
 
-    /// A leaderless partition can't answer, so it keeps 0/0 rather than failing the whole topic.
-    func watermarks(for partition: PartitionInfo, topic: String, session: Session) async throws -> PartitionInfo {
-        guard partition.leader != nil else { return partition }
-        let (low, high) = try Self.queryWatermarks(client: session.client, topic: topic, partition: partition.id, timeoutMs: timeoutMs)
-        return PartitionInfo(
-            id: partition.id, leader: partition.leader, replicas: partition.replicas, isr: partition.isr,
-            startOffset: low, endOffset: high)
-    }
-
     /// Blocking. A leader that moved or was just elected answers "not leader" for a moment; that is retried a few times.
     static func queryWatermarks(client: RdClient, topic: String, partition: Int, timeoutMs: Int32) throws -> (low: Int64, high: Int64) {
         var low: Int64 = 0
@@ -58,7 +49,7 @@ extension LiveKafkaClient {
     // MARK: Admin requests
 
     /// Sends one admin request and waits for its result event. `send` receives the options and the result queue.
-    private func runAdmin(
+    func runAdmin(
         _ operation: rd_kafka_admin_op_t, expecting eventType: Int32, session: Session,
         send: (OpaquePointer, OpaquePointer) -> Void
     ) throws -> RdEvent {

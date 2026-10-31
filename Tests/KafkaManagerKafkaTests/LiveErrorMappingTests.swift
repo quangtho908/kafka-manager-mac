@@ -46,6 +46,13 @@ struct LiveErrorMappingTests {
         }
     }
 
+    @Test func aGroupTheBrokerDoesNotKnowIsRecognisedAsUnknown() {
+        let error = Self.map(RD_KAFKA_RESP_ERR_GROUP_ID_NOT_FOUND)
+        #expect(error.isUnknownGroup)
+        #expect(error == .clusterError(code: KafkaError.groupIdNotFoundCode, message: error.diagnosticText))
+        #expect(!Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE).isUnknownGroup)
+    }
+
     @Test func unknownCodesBecomeClusterErrorsWithTheirCode() {
         let error = Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE)
         guard case .clusterError(let code, let message) = error else {
@@ -74,5 +81,12 @@ struct LiveErrorMappingTests {
 
     @Test func emptySecretsDoNotEraseEverything() {
         #expect(LiveErrorMapping.sanitize("text", code: -1, secrets: [""]) == "text")
+    }
+}
+
+private extension KafkaError {
+    var diagnosticText: String {
+        if case .clusterError(_, let message) = self { return message }
+        return ""
     }
 }

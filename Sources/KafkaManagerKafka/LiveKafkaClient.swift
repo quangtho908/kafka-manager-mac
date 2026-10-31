@@ -7,11 +7,8 @@ import os
 ///
 /// Every blocking C call runs on this actor's own serial queue, never on the cooperative pool. The calls are bounded
 /// by `timeout`, so a cancelled caller waits at most that long. Cancellation is checked between calls.
-/// `listGroups` and `describeGroup` arrive in T60c and fail with a placeholder error until then.
 public actor LiveKafkaClient: KafkaClient {
     public static let defaultTimeout: Duration = .seconds(10)
-    /// Code of the placeholder error returned by the operations that are not implemented yet.
-    public static let notImplementedCode = -1
 
     private let queue = DispatchSerialQueue(label: "kafka-manager.live-client")
     nonisolated public var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
@@ -93,9 +90,17 @@ public actor LiveKafkaClient: KafkaClient {
             let topic = try RdTopic(client: session.client, name: name)
             let metadata = try RdMetadata(client: session.client, allTopics: false, topic: topic, timeoutMs: timeoutMs)
             var partitions = try Self.partitions(of: name, in: metadata)
-            for index in partitions.indices {
-                try Task.checkCancellation()
-                partitions[index] = try await watermarks(for: partitions[index], topic: name, session: session)
+            try Task.checkCancellation()
+            // Leaderless partitions can't answer, so they keep 0/0 rather than failing the whole topic.
+            let asked = partitions.filter { $0.leader != nil }.map { TopicPartition(topic: name, partition: $0.id) }
+            let earliest = try await offsets(of: asked, spec: RD_KAFKA_OFFSET_SPEC_EARLIEST, session: session)
+            let latest = try await offsets(of: asked, spec: RD_KAFKA_OFFSET_SPEC_LATEST, session: session)
+            partitions = partitions.map { partition in
+                let key = TopicPartition(topic: name, partition: partition.id)
+                guard let low = earliest[key], let high = latest[key] else { return partition }
+                return PartitionInfo(
+                    id: partition.id, leader: partition.leader, replicas: partition.replicas, isr: partition.isr,
+                    startOffset: low, endOffset: high)
             }
             let entries = try describeConfig(of: name, session: session)
             return TopicDetail(name: name, partitions: partitions, configEntries: entries)
@@ -124,19 +129,9 @@ public actor LiveKafkaClient: KafkaClient {
         }
     }
 
-    // MARK: Not implemented yet (T60c)
-
-    public func listGroups() async throws -> [GroupSummary] { throw Self.notImplemented }
-
-    public func describeGroup(_ id: String) async throws -> GroupDetail { throw Self.notImplemented }
-
-    static var notImplemented: KafkaError {
-        .clusterError(code: notImplementedCode, message: "not implemented yet")
-    }
-
     // MARK: Helpers
 
-    private func requireSession() throws -> Session {
+    func requireSession() throws -> Session {
         guard let session else { throw KafkaError.unreachable(host: "the cluster") }
         return session
     }

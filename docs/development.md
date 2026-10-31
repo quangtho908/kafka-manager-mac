@@ -27,6 +27,7 @@ vendor/                     librdkafka + OpenSSL tĩnh (git-ignored, do scripts/
 - App mặc định nói chuyện với broker thật. `KAFKAMANAGER_DEMO=1` chuyển sang cluster demo (Fake); `KAFKAMANAGER_DATABASE=/đường/dẫn.sqlite` dùng DB riêng.
 - `scripts/dev.sh itest` chạy test tích hợp với broker `localhost:9092` (đổi bằng `KM_ITEST_BOOTSTRAP`); chỉ tạo/xoá topic `km-itest-*`. `swift test` thường bỏ qua chúng.
 - `fetchMessages` mở consumer riêng cho mỗi lần đọc (chỉ `assign`, không subscribe/commit, group.id giả `km-noop-*`), đóng ngay khi xong/huỷ; đọc trên thread riêng, poll lát 100 ms, buffer stream 256 tin (đầy thì dừng poll). `latest(N)` nhiều partition: giữ N tin mới nhất theo timestamp rồi trả theo (partition, offset). `KM_ITEST_READ_TOPIC=<topic>` cho itest đọc (không ghi) một topic có sẵn.
+- Nhóm (chỉ đọc): `listGroups` = một `rd_kafka_list_groups` (có member count, lọc `protocol_type` ∈ {consumer, rỗng}); `describeGroup` = DescribeConsumerGroups + ListConsumerGroupOffsets + 2 ListOffsets gộp (earliest/latest cho mọi partition một lần; `describeTopic` cũng dùng ListOffsets gộp). Group broker báo `Dead` không member → `clusterError(code: 69)` (`isUnknownGroup`). Các call admin chạy tuần tự trên executor của actor nên gọi song song an toàn. Itest chỉ join/commit/xoá group `km-itest-g-*` của chính nó.
 - Mọi lời gọi C chặn đều chạy trên queue riêng của `LiveKafkaClient`, có timeout (mặc định 10 s); mỗi đối tượng C có wrapper RAII và được đếm trong `ResourceCounters` (test phát hiện rò rỉ).
 
 ## Quy ước

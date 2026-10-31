@@ -52,12 +52,6 @@ extension LiveSerial {
         #expect(ResourceCounters.outstanding.isEmpty, "\(ResourceCounters.outstanding)")
     }
 
-    @Test func unimplementedOperationsFailWithAPlaceholder() async throws {
-        let client = LiveKafkaClient()
-        await #expect(throws: LiveKafkaClient.notImplemented) { try await client.listGroups() }
-        await #expect(throws: LiveKafkaClient.notImplemented) { try await client.describeGroup("g") }
-    }
-
     @Test func fetchBeforeConnectFailsAsUnreachable() async {
         let client = LiveKafkaClient()
         var failure: (any Error)?
@@ -69,6 +63,8 @@ extension LiveSerial {
 
     @Test func operationsBeforeConnectFailAsUnreachable() async {
         let client = LiveKafkaClient()
+        await #expect(throws: KafkaError.self) { try await client.listGroups() }
+        await #expect(throws: KafkaError.self) { try await client.describeGroup("g") }
         await #expect(throws: KafkaError.self) { try await client.listTopics() }
         await #expect(throws: KafkaError.self) { try await client.describeCluster() }
     }
