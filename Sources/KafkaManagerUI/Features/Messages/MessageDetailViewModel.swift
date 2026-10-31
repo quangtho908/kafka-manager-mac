@@ -161,13 +161,14 @@ public final class MessageDetailViewModel {
 
     /// Copies one part decoded in the chosen format, from the **full** bytes (not the 64 KB shown): Auto/JSON/Text
     /// give the same text as the panel for the whole payload, Hex gives the whole hex dump. A format that does not fit
-    /// falls back exactly as the panel does. JSON larger than 32 MB is copied as text.
+    /// falls back exactly as the panel does. JSON larger than 32 MB is copied as text. The limit is `Int.max`: it bounds
+    /// *output* bytes, and pretty-printed JSON and hex dumps are larger than their input.
     public func copy(_ part: MessageDetailPart) async {
         guard let payload = data(of: part) else { return }
         isCopying = true
         defer { isCopying = false }
         let role: PayloadRole = part == .key ? .key : .value
-        let result = await decode(payload, format(of: part), role, max(payload.count, 1))
+        let result = await decode(payload, format(of: part), role, Int.max)
         guard !Task.isCancelled else { return }
         clipboard.copy(result.displayText)
         lastCopy = part == .key ? .key : .value

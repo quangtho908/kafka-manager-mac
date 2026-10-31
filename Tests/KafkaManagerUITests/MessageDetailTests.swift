@@ -208,6 +208,75 @@ struct MessageDetailViewModelTests {
         #expect(m.lastCopy == .value)
     }
 
+    /// Pretty-printed JSON is longer than its input, so a copy limited to the input size used to cut it short.
+    @Test(arguments: [1_000, 120_000])
+    func copyOfCompactJSONIsTheWholePrettyPrintedText(inputSize: Int) async throws {
+        let count = inputSize / 6
+        let compact = "[" + (0..<count).map { String(100_000 + $0) }.joined(separator: ",") + "]"
+        let clipboard = FakeClipboard()
+        let m = model(msg(value: Data(compact.utf8)), clipboard: clipboard)
+        await m.copy(.value)
+        let copied = try #require(clipboard.copied.first)
+        let lines = copied.split(separator: "\n", omittingEmptySubsequences: false)
+        #expect(lines.count == count + 2, "one line per element plus the brackets")
+        #expect(lines.last == "]")
+        #expect(copied.utf8.count > compact.utf8.count)
+        let whole = PayloadDecoder.decode(Data(compact.utf8), as: .auto, limit: Int.max, role: .value)
+        #expect(!whole.isTruncated)
+        #expect(copied == whole.displayText)
+    }
+
+    /// The reported case: a flat object of about ten fields, compact on the wire, copied cut off mid-key.
+    @Test func copyOfASmallFlatObjectEndsWithTheClosingBraceAndParsesBackToTheOriginal() async throws {
+        let compact = #"{"parent_job_id":"11111111-2222-3333-4444-555555555555","job_id":"66666666-7777-8888-9999-000000000000","action":"sync","move_all":false,"owner_id":42,"type":"sync_job_immediate","sent_at":"2026-10-31T10:00:00Z","retries":0,"priority":"high","note":null}"#
+        let clipboard = FakeClipboard()
+        let m = model(msg(value: Data(compact.utf8)), clipboard: clipboard)
+        await m.copy(.value)
+        let copied = try #require(clipboard.copied.first)
+        #expect(copied.hasSuffix("}"))
+        #expect(copied.contains(#""sent_at": "2026-10-31T10:00:00Z""#) || copied.contains(#""sent_at":"2026-10-31T10:00:00Z""#))
+        let original = try #require(try JSONSerialization.jsonObject(with: Data(compact.utf8)) as? NSDictionary)
+        let parsed = try #require(try JSONSerialization.jsonObject(with: Data(copied.utf8)) as? NSDictionary)
+        #expect(parsed == original)
+    }
+
+    @Test func copyOfKeyJSONIsComplete() async throws {
+        let compact = "{" + (0..<2_000).map { #""k\#($0)":[1,2]"# }.joined(separator: ",") + "}"
+        let clipboard = FakeClipboard()
+        let m = model(msg(key: Data(compact.utf8), value: nil), clipboard: clipboard)
+        await m.copy(.key)
+        let copied = try #require(clipboard.copied.first)
+        let parsed = try #require(try JSONSerialization.jsonObject(with: Data(copied.utf8)) as? [String: Any])
+        #expect(parsed.count == 2_000)
+    }
+
+    @Test func copyOfALargeHexDumpIsComplete() async throws {
+        let bytes = Data((0..<200_000).map { UInt8(truncatingIfNeeded: $0 &* 7) } + [0])
+        let clipboard = FakeClipboard()
+        let m = model(msg(value: bytes), clipboard: clipboard)
+        m.setFormat(.hex, for: .value)
+        await m.copy(.value)
+        let copied = try #require(clipboard.copied.first)
+        #expect(copied.split(separator: "\n").count == (bytes.count + 15) / 16)
+    }
+
+    @Test func copyOfALargeTextIsComplete() async throws {
+        let text = String(repeating: "héllo wörld ", count: 20_000)
+        let clipboard = FakeClipboard()
+        let m = model(msg(value: Data(text.utf8)), clipboard: clipboard)
+        m.setFormat(.text, for: .value)
+        await m.copy(.value)
+        #expect(clipboard.copied == [text])
+    }
+
+    @Test func theDisplayedPanelStaysLimited() async {
+        let compact = "[" + (0..<40_000).map { String(100_000 + $0) }.joined(separator: ",") + "]"
+        let m = model(msg(value: Data(compact.utf8)), clipboard: FakeClipboard())
+        await m.load(.value)
+        #expect(m.value.payload?.isTruncated == true)
+        #expect((m.value.payload?.displayText.utf8.count ?? .max) <= PayloadDecoder.displayLimit)
+    }
+
     @Test func copyFollowsTheChosenFormat() async {
         let clipboard = FakeClipboard()
         let m = model(msg(value: Data("hi".utf8)), clipboard: clipboard)

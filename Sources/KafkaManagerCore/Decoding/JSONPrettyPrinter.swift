@@ -44,7 +44,7 @@ struct JSONPrettyPrinter {
     private init(bytes: UnsafeBufferPointer<UInt8>, limit: Int) {
         self.bytes = bytes
         self.limit = limit
-        out.reserveCapacity(min(bytes.count + bytes.count / 4, limit + 64))
+        out.reserveCapacity(min(bytes.count + bytes.count / 4, limit))
     }
 
     // MARK: Output
