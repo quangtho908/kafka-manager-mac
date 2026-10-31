@@ -161,7 +161,8 @@ These are the messages the app shows.
 | The message is larger than the cluster accepts. | Shrink the message; the broker's limit is lower than the app's 1 MB. |
 | Stop the group's consumers first; offsets can only be changed while the group has no active members. | Reset needs an empty group. |
 | The cluster returned an error (code N). | Any other broker error; include the code when you report it. |
-| macOS asks to use a Keychain item | Choose Always Allow so saved passwords can be read without asking each time. |
+
+macOS may also ask whether Kafka Manager can use a Keychain item; choose Always Allow so saved passwords are read without asking each time.
 
 ## FAQ
 
