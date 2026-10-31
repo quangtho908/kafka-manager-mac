@@ -15,10 +15,14 @@ public final class ConnectionsViewModel {
     @ObservationIgnored private let store: any ConnectionStore
     @ObservationIgnored private let secrets: any SecretStore
     @ObservationIgnored private var checkedRecovery = false
+    @ObservationIgnored private weak var observer: (any ConnectionLifecycleObserver)?
+    @ObservationIgnored private var pendingSync: Task<Void, Never>?
 
-    public init(store: any ConnectionStore, secrets: any SecretStore) {
+    /// - Parameter observer: told after a profile is saved or deleted (held weakly), e.g. the session registry.
+    public init(store: any ConnectionStore, secrets: any SecretStore, observer: (any ConnectionLifecycleObserver)? = nil) {
         self.store = store
         self.secrets = secrets
+        self.observer = observer
     }
 
     /// Loads when idle, or when `refresh` is true (retry after a failure, manual reload). Ignored while loading.
@@ -76,6 +80,12 @@ public final class ConnectionsViewModel {
             state = .loaded(connections)
         }
         if selection == id { selection = nil }
+        await observer?.connectionDeleted(id: id)
+    }
+
+    /// Completes when every observer notification queued by `didSave` has been delivered.
+    public func waitForObserverSync() async {
+        await pendingSync?.value
     }
 
     /// A form wired to the same stores, with the name check excluding the profile being edited.
@@ -97,6 +107,7 @@ public final class ConnectionsViewModel {
     /// Reflects a profile the form just saved without re-reading the store. Ignored before the first load, which
     /// will pick the profile up anyway.
     public func didSave(_ connection: ClusterConnection) {
+        notifyObserverOfSave(connection)
         guard case .loaded(var connections) = state else { return }
         if let index = connections.firstIndex(where: { $0.id == connection.id }) {
             connections[index] = connection
@@ -104,6 +115,16 @@ public final class ConnectionsViewModel {
             connections.append(connection)
         }
         state = .loaded(connections)
+    }
+
+    /// Deliveries are chained so the observer sees saves in order, without blocking the form's dismissal.
+    private func notifyObserverOfSave(_ connection: ClusterConnection) {
+        guard let observer else { return }
+        let previous = pendingSync
+        pendingSync = Task {
+            await previous?.value
+            await observer.connectionSaved(connection)
+        }
     }
 
     private var isIdle: Bool {
