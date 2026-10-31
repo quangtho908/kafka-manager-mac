@@ -109,7 +109,7 @@ User action ─► View ─► ViewModel (@MainActor)
 
 | Dữ liệu | Nơi lưu |
 |---|---|
-| Profile cluster (không secret) | `~/Library/Application Support/KafkaManager/connections.json`, ghi atomic, giữ `.bak` |
+| Profile cluster (không secret) | SQLite `~/Library/Application Support/KafkaManager/kafkamanager.sqlite` (xem spec 01) |
 | Password/SASL secret | Keychain (`service = KafkaManager`, `account = profile id`) |
 | Cert CA/client | Đường dẫn file hoặc Keychain (chốt khi làm mTLS, P2) |
 | Preference UI | `UserDefaults` / `@AppStorage` (không chứa secret) |
@@ -138,11 +138,15 @@ App Sandbox bật khi đóng gói: cần `com.apple.security.network.client`; tr
 | D3 | Secret trong Keychain | Yêu cầu bảo mật cơ bản |
 | D4 | Swift Testing | Chuẩn mới của Swift |
 | D5 | Xem message dùng consumer không commit offset | Không ảnh hưởng group thật |
+| D7 | **Kafka client: librdkafka v2.16.0 liên kết tĩnh + OpenSSL**, bọc trong target `KafkaManagerKafka`; config consumer giảm buffer + làm nóng metadata trước `assign` (spike T04, `plans/spike-kafka-client-result.md`) | Duy nhất đủ admin + consume, +6 MB binary, ~13 MB RSS khi đọc 500 message. Chưa kiểm chứng: TLS/SASL thật, universal, 5000 topic |
+| D8 | **Lưu cục bộ bằng SQLite** (`libsqlite3` hệ thống, không dependency) sau protocol `ConnectionStore`; secret vẫn ở Keychain | Nhẹ, mở rộng được (nhật ký, cài đặt) |
 | D6 | **Deployment target macOS 14** (hỗ trợ máy cũ), chốt 2026-10-31 | Yêu cầu người dùng. API mới hơn 14 chỉ dùng sau `#available` kèm phương án thay thế; xem `development.md` |
 
 ### Còn mở
 
-**O1 · Kafka client** — cần một client có **cả admin API** (list/describe/create/delete topic, list/describe group, config) **lẫn consume**.
+**O1 · Kafka client — ĐÃ CHỐT (D7)**; bảng dưới giữ làm lịch sử so sánh.
+
+**O1 · (lịch sử) Kafka client** — cần một client có **cả admin API** (list/describe/create/delete topic, list/describe group, config) **lẫn consume**.
 
 | Lựa chọn | Ưu | Nhược / cần kiểm chứng |
 |---|---|---|
