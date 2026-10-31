@@ -25,6 +25,11 @@ to Applications.
 1. Choose **File > New Connection** (Command-N), or press **New Connection** in the connection list.
 2. Fill in **Name** and **Bootstrap servers** (for example `localhost:9092`), pick the **Environment**, and press
    **Test Connection**, then **Save**.
+
+   ![New Connection form with the Security menu open](docs/images/connection-form.png)
+
+   The New Connection form on first launch.
+
 3. Select the connection, then pick **Topics** in the segmented control. The app connects at this point.
 4. Select a topic and open its **Messages** tab.
 5. Leave **Start** on **Latest**, set a **Count**, and press **Fetch** (Command-Return).
