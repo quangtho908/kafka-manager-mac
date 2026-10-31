@@ -1,6 +1,24 @@
 import SwiftUI
 import KafkaManagerCore
 
+/// Owns the form's view model for as long as the sheet is up. The sheet closure that builds this host is re-run
+/// whenever the presenting view re-evaluates; `@State` keeps the first model for this host's identity (the sheet
+/// item), so typing, `hasStoredPassword` and an in-flight save survive. The extra models built by those re-runs
+/// are discarded unused; they do no I/O.
+struct ConnectionFormHost: View {
+    @State private var form: ConnectionFormViewModel
+    let onSaved: (ClusterConnection) -> Void
+
+    init(mode: ConnectionFormViewModel.Mode, connections: ConnectionsViewModel) {
+        _form = State(initialValue: connections.makeFormViewModel(mode: mode))
+        onSaved = connections.didSave
+    }
+
+    var body: some View {
+        ConnectionFormView(model: form, onSaved: onSaved)
+    }
+}
+
 /// Add / edit / duplicate form, presented in a sheet. Validation messages sit under their field.
 struct ConnectionFormView: View {
     @Bindable var model: ConnectionFormViewModel
@@ -89,6 +107,12 @@ struct ConnectionFormView: View {
 
     // MARK: Footer
 
+    /// Why Save is disabled, even for fields the user hasn't touched yet.
+    private var saveHint: String? {
+        guard !model.canSave, model.saveState != .saving else { return nil }
+        return model.issues.first { $0.severity == .error }?.message
+    }
+
     private var footer: some View {
         HStack(spacing: Metrics.footerSpacing) {
             if case .failed(let message) = model.saveState {
@@ -96,6 +120,10 @@ struct ConnectionFormView: View {
                     .foregroundStyle(.red)
                     .font(.callout)
                     .accessibilityLabel(Text("Couldn't save: \(message)"))
+            } else if let hint = saveHint {
+                Text(hint)
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
             }
             Spacer()
             if model.saveState == .saving {

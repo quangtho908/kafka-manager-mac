@@ -47,6 +47,10 @@ Skill `swiftui-macos` nhắm macOS 26 / Swift 6.2, nên khi áp dụng skill:
 - Vì SDK mới không báo lỗi khi gọi API mới mà thiếu guard trên target 14 chỉ ở một số trường hợp, coder phải kiểm tra từng API lạ trong tài liệu (mục *Availability*), không dựa vào việc build qua.
 - Nếu skill khuyên một pattern của 26 mà 14 không có, ghi rõ trong báo cáo mục "Ngoại lệ có chủ ý" cách đã thay thế.
 
+## Chạy với database tạm
+
+Để không đụng profile thật: `KAFKAMANAGER_DATABASE=/tmp/x.sqlite swift run KafkaManager` (chỉ dùng khi phát triển/test, không dành cho người dùng).
+
 ## Đóng gói
 
 SwiftPM executable không có entitlements/signing. Trước khi phát hành cần Xcode project (hoặc XcodeGen) với App Sandbox, entitlement `com.apple.security.network.client`, Developer ID signing và notarization.

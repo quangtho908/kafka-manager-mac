@@ -41,7 +41,7 @@ public struct ConnectionListView: View {
             deletionRequest = nil
         }
         .sheet(item: $formRequest) { request in
-            ConnectionFormView(model: model.makeFormViewModel(mode: request.mode), onSaved: model.didSave)
+            ConnectionFormHost(mode: request.mode, connections: model)
         }
         .sheet(item: $pendingDelete) { confirmation in
             DeleteConnectionSheet(confirmation: confirmation) { deletionRequest = confirmation.connection.id }
@@ -202,11 +202,11 @@ private struct DeleteConnectionSheet: View {
             }
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
+                // Return must never delete: Cancel is the default button; production confirms through the typed name.
                 Button("Delete", role: .destructive, action: confirmIfAllowed)
-                    .keyboardShortcut(.defaultAction)
                     .disabled(!confirmation.isSatisfied(by: typedName))
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(Metrics.padding)

@@ -84,4 +84,14 @@ struct ConnectionPresentationTests {
         editing.name = "a"
         #expect(editing.issues.isEmpty)
     }
+
+    @MainActor @Test func makeFormViewModelReturnsIndependentInstances() {
+        let model = ConnectionsViewModel(store: InMemoryConnectionStore(), secrets: InMemorySecretStore())
+        let first = model.makeFormViewModel(mode: .new)
+        let second = model.makeFormViewModel(mode: .new)
+        first.name = "typed"
+        #expect(first !== second)
+        #expect(second.name.isEmpty)
+        #expect(first.connectionID != second.connectionID)
+    }
 }
