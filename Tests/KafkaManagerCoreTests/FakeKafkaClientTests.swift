@@ -369,3 +369,31 @@ private func connectedFake(topics: [FakeKafkaClient.SeedTopic] = []) async throw
     try await fake.deleteTopic("fresh")
     #expect(try await fake.listTopics().isEmpty)
 }
+
+@Test func failNextFetchDeliversNMessagesThenThrowsOnceAndClosesTheStream() async throws {
+    let fake = try await connected()
+    await fake.failNextFetch(after: 3, with: .timeout)
+    var received: [KafkaMessage] = []
+    var thrown: KafkaError?
+    do {
+        for try await message in fake.fetchMessages(MessageQuery(topic: "orders", start: .earliest, limit: 10)) { received.append(message) }
+    } catch {
+        thrown = error as? KafkaError
+    }
+    #expect(received.count == 3)
+    #expect(thrown == .timeout)
+    #expect(fake.openFetchStreams == 0)
+    // One-shot: the next fetch completes.
+    let again = try await collect(fake.fetchMessages(MessageQuery(topic: "orders", start: .earliest, limit: 10)))
+    #expect(again.count == 10)
+}
+
+@Test func failNextFetchStaysArmedWhenTheStreamIsShorter() async throws {
+    let fake = try await connected()
+    await fake.failNextFetch(after: 50, with: .timeout)
+    let short = try await collect(fake.fetchMessages(MessageQuery(topic: "orders", start: .earliest, limit: 5)))
+    #expect(short.count == 5)
+    await #expect(throws: KafkaError.timeout) {
+        try await collect(fake.fetchMessages(MessageQuery(topic: "orders", start: .earliest, limit: 100)))
+    }
+}

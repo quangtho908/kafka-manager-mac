@@ -215,6 +215,55 @@ struct MessagesFetchTests {
     }
 }
 
+@Suite("MessagesViewModel connection loss") @MainActor
+struct MessagesMidStreamErrorTests {
+    @Test func rowsBeforeTheErrorAreKeptAndRetryReplacesThem() async {
+        let rig = MessagesRig(messages: (0..<20).map { message(0, Int64($0)) })
+        rig.model.startKind = .earliest
+        await rig.fake.failNextFetch(after: 6, with: .timeout)
+        await rig.model.fetch()
+
+        guard case .failed(let text, let kept) = rig.model.status else {
+            Issue.record("unexpected status \(rig.model.status)")
+            return
+        }
+        #expect(!text.isEmpty && kept == 6)
+        #expect(rig.model.rows.count == 6)
+        #expect(rig.model.visibleRows.count == 6)
+        #expect(rig.model.statusText == "Kept 6 messages")
+        #expect(!rig.model.isFetching && rig.model.canFetch)
+        #expect(rig.fake.openFetchStreams == 0)
+
+        // Retry: the injected failure was one-shot, so the same query now completes and replaces the rows.
+        await rig.model.fetch()
+        #expect(rig.model.rows.count == 20)
+        #expect(rig.model.status == .finished(count: 20, reason: .endOfData))
+    }
+
+    @Test func noFlusherIsLeftAfterTheError() async {
+        let rig = MessagesRig(messages: (0..<10).map { message(0, Int64($0)) }, manualClock: true)
+        rig.model.startKind = .earliest
+        await rig.fake.failNextFetch(after: 4, with: .timeout)
+        await rig.model.fetch()
+        #expect(rig.model.rows.count == 4)
+        #expect(rig.model.publishCount == 1)
+        for _ in 0..<50 { await Task.yield() }
+        #expect(await rig.sleeper?.pendingCount == 0)
+    }
+
+    @Test func aSelectedRowSurvivesTheErrorButNotARetry() async {
+        let rig = MessagesRig(messages: (0..<10).map { message(0, Int64($0)) })
+        rig.model.startKind = .earliest
+        await rig.fake.failNextFetch(after: 5, with: .timeout)
+        await rig.model.fetch()
+        let chosen = rig.model.rows[2].id
+        rig.model.selection = chosen
+        #expect(rig.model.selection == chosen)
+        await rig.model.fetch()
+        #expect(rig.model.selection == nil)
+    }
+}
+
 @Suite("MessagesViewModel batching") @MainActor
 struct MessagesBatchingTests {
     @Test func rowsArePublishedOnlyWhenTheClockTicksAndAtTheEnd() async {

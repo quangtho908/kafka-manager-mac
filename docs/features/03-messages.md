@@ -37,6 +37,11 @@ struct KafkaMessage { partition: Int; offset: Int64; timestamp: Date; key: Data?
 - Message >1 MB: không pretty print đồng bộ trên main thread.
 - Cập nhật UI theo batch (vd. mỗi 100 ms), không từng message.
 
+## Giới hạn
+
+- Bộ nhớ: tổng key+value các message giữ lại tối đa 64 MB; chạm ngưỡng thì dừng fetch và báo "size limit reached" (số message có thể ít hơn limit).
+- Cập nhật bảng: mặc định mỗi 100 ms, khoảng cách tăng dần theo số dòng đã hiển thị (thêm 100 ms mỗi 500 dòng) vì mỗi lần cập nhật SwiftUI phải diff cả bảng; luôn cập nhật nốt khi kết thúc, dừng hoặc lỗi.
+
 ## Edge case
 
 - Topic rỗng → trạng thái "No messages", không phải spinner mãi.

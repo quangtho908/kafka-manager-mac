@@ -32,6 +32,7 @@ public actor FakeKafkaClient: KafkaClient {
     private nonisolated let openStreams = OSAllocatedUnfairLock(initialState: 0)
     private var nextFailure: KafkaError?
     private var persistentFailures: [Method: KafkaError] = [:]
+    private var midStreamFailure: (after: Int, error: KafkaError)?
 
     /// - Parameters:
     ///   - host: reported by `.unreachable` before any `connect`; afterwards the connected cluster's first bootstrap server is used.
@@ -69,6 +70,13 @@ public actor FakeKafkaClient: KafkaClient {
     /// Number of `fetchMessages` streams that have started and not yet ended (finished, failed or terminated by the
     /// consumer). Lets tests check that stopping really stops the producer.
     public nonisolated var openFetchStreams: Int { openStreams.withLock { $0 } }
+
+    /// The next `fetchMessages` stream that yields at least `count` messages delivers exactly `count` and then
+    /// fails with `error`, once; later fetches are unaffected. A stream that has fewer messages ends normally and
+    /// leaves the failure armed.
+    public func failNextFetch(after count: Int, with error: KafkaError) {
+        midStreamFailure = (max(count, 0), error)
+    }
 
     public func setLatency(_ latency: Duration) {
         self.latency = latency
@@ -146,9 +154,10 @@ public actor FakeKafkaClient: KafkaClient {
             let task = Task {
                 defer { self.openStreams.withLock { $0 -= 1 } }
                 do {
-                    let (result, delay) = try await self.select(query)
-                    for message in result {
+                    let (result, delay, failure) = try await self.select(query)
+                    for (index, message) in result.enumerated() {
                         try Task.checkCancellation()
+                        if let failure, index == failure.after { throw failure.error }
                         if delay > .zero { try await Task.sleep(for: delay) }
                         continuation.yield(message)
                     }
@@ -161,10 +170,10 @@ public actor FakeKafkaClient: KafkaClient {
         }
     }
 
-    private func select(_ query: MessageQuery) async throws -> ([KafkaMessage], Duration) {
+    private func select(_ query: MessageQuery) async throws -> ([KafkaMessage], Duration, (after: Int, error: KafkaError)?) {
         try await begin(.fetchMessages)
         guard topics[query.topic] != nil else { throw KafkaError.unknownTopic(query.topic) }
-        guard query.limit > 0 else { return ([], latency) }
+        guard query.limit > 0 else { return ([], latency, nil) }
 
         let byPartition = messages[query.topic] ?? [:]
         let partitionIds = query.partition.map { [$0] } ?? byPartition.keys.sorted()
@@ -184,7 +193,12 @@ public actor FakeKafkaClient: KafkaClient {
                 .prefix(max(0, min(count, query.limit)))
             selected = newest.sorted { ($0.partition, $0.offset) < ($1.partition, $1.offset) }
         }
-        return (selected, latency)
+        var failure: (after: Int, error: KafkaError)?
+        if let armed = midStreamFailure, selected.count > armed.after {
+            failure = armed
+            midStreamFailure = nil
+        }
+        return (selected, latency, failure)
     }
 
     // MARK: Groups
