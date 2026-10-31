@@ -9,6 +9,7 @@ struct MessagesView: View {
     @State private var runToken = 0
     @State private var sortOrder: [KeyPathComparator<MessageRow>] = [KeyPathComparator(\.message.timestamp, order: .reverse)]
     @FocusState private var filterFocused: Bool
+    @Environment(\.clipboard) private var clipboard
 
     private enum Metrics {
         static let padding: Double = 12
@@ -20,6 +21,7 @@ struct MessagesView: View {
         static let offsetColumn: ClosedRange<Double> = 70...120
         static let timestampColumn: ClosedRange<Double> = 150...200
         static let sizeColumn: ClosedRange<Double> = 60...100
+        static let tableMinHeight: Double = 120
         static let keyMin: Double = 80
         static let valueMin: Double = 160
     }
@@ -33,7 +35,7 @@ struct MessagesView: View {
             if case .failed(let message, _) = model.status {
                 ErrorBanner(message: message, onRetry: { runToken += 1 })
             }
-            results
+            resultsAndDetail
             statusBar
         }
         .task(id: runToken) {
@@ -140,6 +142,19 @@ struct MessagesView: View {
 
     // MARK: Results
 
+    /// The table, with the selected message's detail in a resizable split below it.
+    @ViewBuilder private var resultsAndDetail: some View {
+        if let row = model.selectedRow {
+            VSplitView {
+                results.frame(minHeight: Metrics.tableMinHeight)
+                MessageDetailView(topic: model.topicName, message: row.message, clipboard: clipboard)
+                    .id(row.id)
+            }
+        } else {
+            results
+        }
+    }
+
     @ViewBuilder private var results: some View {
         if model.rows.isEmpty {
             emptyState
@@ -200,6 +215,14 @@ struct MessagesView: View {
             .width(min: Metrics.sizeColumn.lowerBound, max: Metrics.sizeColumn.upperBound)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .contextMenu(forSelectionType: MessageID.self) { ids in
+            if let id = ids.first {
+                Button("Copy Key") { model.copyRaw(.key, of: id, to: clipboard) }
+                    .disabled(!model.canCopyRaw(.key, of: id))
+                Button("Copy Value") { model.copyRaw(.value, of: id, to: clipboard) }
+                    .disabled(!model.canCopyRaw(.value, of: id))
+            }
+        }
     }
 
     private var statusBar: some View {

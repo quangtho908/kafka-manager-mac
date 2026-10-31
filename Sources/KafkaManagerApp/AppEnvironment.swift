@@ -10,6 +10,7 @@ final class AppEnvironment {
     /// Empty until a feature asks for a cluster; nothing connects at launch.
     let sessions: ClusterSessions
     let shell: ShellViewModel
+    let clipboard = SystemClipboard()
 
     init() {
         let store: any ConnectionStore

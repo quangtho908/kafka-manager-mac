@@ -277,6 +277,26 @@ public final class MessagesViewModel {
         return filtered
     }
 
+    /// The row for `selection`, if it is still in the fetched rows.
+    public var selectedRow: MessageRow? {
+        guard let selection else { return nil }
+        return rows.first { $0.id == selection }
+    }
+
+    /// Row context menu: copies the raw key or value of `id` (valid UTF-8 as is, otherwise base64) without decoding.
+    /// A null payload copies nothing.
+    public func copyRaw(_ part: MessageDetailPart, of id: MessageID, to clipboard: any Clipboard) {
+        guard let row = rows.first(where: { $0.id == id }) else { return }
+        let data = part == .key ? row.message.key : row.message.value
+        guard let text = MessageExport.rawText(data) else { return }
+        clipboard.copy(text)
+    }
+
+    public func canCopyRaw(_ part: MessageDetailPart, of id: MessageID) -> Bool {
+        guard let row = rows.first(where: { $0.id == id }) else { return false }
+        return (part == .key ? row.message.key : row.message.value) != nil
+    }
+
     public var hasNoMatches: Bool { !rows.isEmpty && visibleRows.isEmpty }
 
     /// "Fetched 500 messages · limit reached", or the live count while fetching.

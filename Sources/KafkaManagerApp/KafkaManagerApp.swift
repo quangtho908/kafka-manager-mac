@@ -20,6 +20,7 @@ struct KafkaManagerApp: App {
     var body: some Scene {
         WindowGroup("Kafka Manager") {
             ShellView(shell: environment.shell, sessions: environment.sessions, formRequest: $formRequest, refreshToken: refreshToken)
+            .environment(\.clipboard, environment.clipboard)
             .frame(minWidth: Metrics.minWidth, minHeight: Metrics.minHeight)
         }
         .defaultSize(width: Metrics.defaultWidth, height: Metrics.defaultHeight)
