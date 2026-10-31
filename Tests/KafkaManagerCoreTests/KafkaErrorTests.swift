@@ -8,6 +8,7 @@ private let allErrors: [KafkaError] = [
     .timeout,
     .unknownTopic("orders"),
     .topicAlreadyExists("orders"),
+    .readOnly(clusterName: "prod-eu"),
     .clusterError(code: 42, message: "Local: Broker transport failure"),
 ]
 
@@ -21,6 +22,10 @@ func everyKafkaErrorHasUserMessage(error: KafkaError) {
     #expect(KafkaError.unknownTopic("orders").userMessage.contains("orders"))
     #expect(KafkaError.topicAlreadyExists("orders").userMessage.contains("orders"))
     #expect(KafkaError.authorizationFailed(resource: "topic orders").userMessage.contains("topic orders"))
+}
+
+@Test func readOnlyUserMessageNamesTheCluster() {
+    #expect(KafkaError.readOnly(clusterName: "prod-eu").userMessage.contains("prod-eu"))
 }
 
 @Test func clusterErrorUserMessageDoesNotLeakRawMessage() {

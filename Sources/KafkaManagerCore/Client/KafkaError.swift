@@ -7,6 +7,7 @@ public enum KafkaError: Error, Sendable, Equatable {
     case timeout
     case unknownTopic(String)
     case topicAlreadyExists(String)
+    case readOnly(clusterName: String)
     /// Anything else; `message` is the original broker/client text, kept for diagnostics only.
     case clusterError(code: Int, message: String)
 
@@ -25,6 +26,8 @@ public enum KafkaError: Error, Sendable, Equatable {
             String(localized: "Topic \"\(name)\" doesn't exist.")
         case .topicAlreadyExists(let name):
             String(localized: "Topic \"\(name)\" already exists.")
+        case .readOnly(let clusterName):
+            String(localized: "\"\(clusterName)\" is read-only. Switch the cluster to a writable environment to make changes.")
         case .clusterError(let code, _):
             String(localized: "The cluster returned an error (code \(code)).")
         }
