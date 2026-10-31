@@ -32,18 +32,27 @@ public struct PartitionLag: Hashable, Sendable {
     public let partition: Int
     /// nil when the group has never committed an offset for this partition.
     public let committedOffset: Int64?
+    public let startOffset: Int64
     public let endOffset: Int64
 
-    public init(topic: String, partition: Int, committedOffset: Int64?, endOffset: Int64) {
+    public init(topic: String, partition: Int, committedOffset: Int64?, startOffset: Int64, endOffset: Int64) {
         self.topic = topic
         self.partition = partition
         self.committedOffset = committedOffset
+        self.startOffset = startOffset
         self.endOffset = endOffset
     }
 
-    /// nil when there is no committed offset ("no offset"); never negative otherwise.
-    public var lag: Int64? {
-        committedOffset.map { max(0, endOffset - $0) }
+    public var hasCommittedOffset: Bool { committedOffset != nil }
+
+    /// Messages not yet consumed; without a commit the whole retained range counts. Never negative.
+    public var lag: Int64 {
+        max(0, endOffset - (committedOffset ?? startOffset))
+    }
+
+    /// True when the group committed past the log end (e.g. after topic recreation or truncation).
+    public var isCommittedAheadOfEnd: Bool {
+        committedOffset.map { $0 > endOffset } ?? false
     }
 }
 
