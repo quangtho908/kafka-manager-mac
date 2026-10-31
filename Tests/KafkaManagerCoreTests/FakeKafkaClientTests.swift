@@ -316,3 +316,56 @@ private func collect(_ stream: AsyncThrowingStream<KafkaMessage, Error>) async t
     #expect(payments.configEntries.contains { $0.isSensitive && $0.value == nil })
     #expect(!payments.config.values.contains("never-shown"))
 }
+
+private func connectedFake(topics: [FakeKafkaClient.SeedTopic] = []) async throws -> FakeKafkaClient {
+    let fake = FakeKafkaClient(topics: topics)
+    try await fake.connect(cluster, credentials: nil)
+    return fake
+}
+
+@Test func createTopicRejectsNonPositivePartitionsAndReplicationFactor() async throws {
+    let fake = try await connectedFake()
+    for partitions in [0, -1] {
+        await #expect(throws: KafkaError.clusterError(code: KafkaError.invalidPartitionsCode, message: "Invalid number of partitions")) {
+            try await fake.createTopic(NewTopic(name: "t", partitions: partitions, replicationFactor: 1))
+        }
+    }
+    for factor in [0, -1, 4] {
+        await #expect(throws: KafkaError.clusterError(code: KafkaError.invalidReplicationFactorCode, message: "Invalid replication factor")) {
+            try await fake.createTopic(NewTopic(name: "t", partitions: 1, replicationFactor: factor))
+        }
+    }
+    #expect(try await fake.listTopics().isEmpty)
+}
+
+@Test func createTopicRejectsInvalidNames() async throws {
+    let fake = try await connectedFake()
+    for name in ["", "..", "a b", String(repeating: "x", count: 250)] {
+        await #expect(throws: KafkaError.clusterError(code: KafkaError.invalidTopicCode, message: "Invalid topic name")) {
+            try await fake.createTopic(NewTopic(name: name, partitions: 1, replicationFactor: 1))
+        }
+    }
+}
+
+@Test func validationErrorsHaveTheirOwnUserMessages() {
+    let codes = [KafkaError.invalidTopicCode, KafkaError.invalidPartitionsCode, KafkaError.invalidReplicationFactorCode]
+    let messages = codes.map { KafkaError.clusterError(code: $0, message: "raw").userMessage }
+    #expect(Set(messages).count == 3)
+    #expect(messages.allSatisfy { !$0.contains("code") && !$0.contains("raw") })
+}
+
+@Test func failedConnectLeavesTheClientDisconnected() async throws {
+    let fake = try await connectedFake(topics: [])
+    await fake.failing(.connect, with: .timeout)
+    await #expect(throws: KafkaError.timeout) { try await fake.connect(cluster, credentials: nil) }
+    await fake.failing(.connect, with: nil)
+    await #expect(throws: KafkaError.self) { try await fake.listTopics() }
+}
+
+@Test func createAndDeleteShowUpInTheNextListTopics() async throws {
+    let fake = try await connectedFake()
+    try await fake.createTopic(NewTopic(name: "fresh", partitions: 2, replicationFactor: 1))
+    #expect(try await fake.listTopics().map(\.name) == ["fresh"])
+    try await fake.deleteTopic("fresh")
+    #expect(try await fake.listTopics().isEmpty)
+}

@@ -11,6 +11,12 @@ public enum KafkaError: Error, Sendable, Equatable {
     /// Anything else; `message` is the original broker/client text, kept for diagnostics only.
     case clusterError(code: Int, message: String)
 
+    /// Kafka protocol error codes with their own wording: INVALID_TOPIC_EXCEPTION, INVALID_PARTITIONS,
+    /// INVALID_REPLICATION_FACTOR.
+    public static let invalidTopicCode = 17
+    public static let invalidPartitionsCode = 37
+    public static let invalidReplicationFactorCode = 38
+
     /// Plain-language text safe to show in the UI.
     public var userMessage: String {
         switch self {
@@ -28,6 +34,12 @@ public enum KafkaError: Error, Sendable, Equatable {
             String(localized: "Topic \"\(name)\" already exists.")
         case .readOnly(let clusterName):
             String(localized: "\"\(clusterName)\" is read-only. Switch the cluster to a writable environment to make changes.")
+        case .clusterError(let code, _) where code == Self.invalidTopicCode:
+            String(localized: "The cluster rejected the topic name.")
+        case .clusterError(let code, _) where code == Self.invalidPartitionsCode:
+            String(localized: "The number of partitions is invalid. Use 1 or more.")
+        case .clusterError(let code, _) where code == Self.invalidReplicationFactorCode:
+            String(localized: "The replication factor is invalid. Use 1 or more, and no more than the number of brokers.")
         case .clusterError(let code, _):
             String(localized: "The cluster returned an error (code \(code)).")
         }

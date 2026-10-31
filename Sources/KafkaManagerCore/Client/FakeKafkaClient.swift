@@ -71,6 +71,8 @@ public actor FakeKafkaClient: KafkaClient {
     // MARK: Connection
 
     public func connect(_ cluster: ClusterConnection, credentials: Credentials?) async throws {
+        // A failed attempt leaves the client disconnected, even if it was connected before.
+        isConnected = false
         try await begin(.connect, requiresConnection: false)
         host = Self.firstServer(of: cluster.bootstrapServers) ?? host
         if let expectedCredentials, credentials != expectedCredentials {
@@ -105,6 +107,15 @@ public actor FakeKafkaClient: KafkaClient {
 
     public func createTopic(_ spec: NewTopic) async throws {
         try await begin(.createTopic)
+        if TopicNameValidator.problem(in: spec.name) != nil {
+            throw KafkaError.clusterError(code: KafkaError.invalidTopicCode, message: "Invalid topic name")
+        }
+        guard spec.partitions >= 1 else {
+            throw KafkaError.clusterError(code: KafkaError.invalidPartitionsCode, message: "Invalid number of partitions")
+        }
+        guard (1...brokerCount).contains(spec.replicationFactor) else {
+            throw KafkaError.clusterError(code: KafkaError.invalidReplicationFactorCode, message: "Invalid replication factor")
+        }
         guard topics[spec.name] == nil else { throw KafkaError.topicAlreadyExists(spec.name) }
         let brokers = Array(0..<max(spec.replicationFactor, 1))
         let partitions = (0..<spec.partitions).map {
