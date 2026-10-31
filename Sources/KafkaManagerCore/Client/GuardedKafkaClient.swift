@@ -39,6 +39,11 @@ public actor GuardedKafkaClient: KafkaClient {
         try await inner.deleteTopic(name)
     }
 
+    public func produce(_ request: ProduceRequest) async throws -> ProduceResult {
+        try blockIfReadOnly()
+        return try await inner.produce(request)
+    }
+
     public func resetOffsets(group: String, plan: OffsetResetPlan) async throws -> OffsetResetResult {
         try blockIfReadOnly()
         return try await inner.resetOffsets(group: group, plan: plan)

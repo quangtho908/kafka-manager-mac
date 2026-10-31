@@ -61,3 +61,17 @@ struct KafkaMessage { partition: Int; offset: Int64; timestamp: Date; key: Data?
 - Decode Auto: JSON, text, hex, null, UTF-8 lỗi.
 - Lọc client; sắp xếp.
 - View model: huỷ giữa chừng dừng stream (dùng Fake có độ trễ).
+
+## Gửi message (Produce, T71)
+
+Gửi **một** message vào topic từ app: nút **Produce…** ở header chi tiết topic, và **Produce Again…** ở panel chi tiết message / menu chuột phải trên dòng bảng Messages (điền sẵn từ message đang chọn).
+
+**Core:** `KafkaClient.produce(_ request: ProduceRequest) async throws -> ProduceResult` là lệnh GHI. `GuardedKafkaClient` chặn khi cluster read-only (có trong bảng phân loại ghi của test). `ProduceRequest` gồm topic, partition (`nil` = partitioner chọn), key, value (`nil` = tombstone, khác với value rỗng), headers, timestamp (`nil` = bây giờ). `ProduceResult` trả partition, offset, timestamp thật do broker ghi. `ProduceValidator` kiểm tra thuần: topic không rỗng, partition ≥ 0, tên header không rỗng và không chứa NUL, timestamp ≥ 1970, tổng kích thước (key + value + header) ≤ 1 MiB. Broker từ chối quá cỡ (MSG_SIZE_TOO_LARGE) được ánh xạ thành thông báo thân thiện.
+
+**Mã hoá nhập liệu (`ProduceEncoder`):** Text (UTF-8 đúng như gõ), JSON (kiểm tra hợp lệ, gửi nguyên văn; nút *Format* thụt dòng lại), Hex (chấp nhận khoảng trắng, `: - ,`, tiền tố `0x`; số chữ số lẻ hoặc ký tự lạ báo lỗi). Key chỉ có Text/Hex; để trống = không có key. Không có Avro / Schema Registry.
+
+**Live:** một producer librdkafka tạo lười cho mỗi client (không phải mỗi message), cấu hình nhỏ (`acks=all`, `enable.idempotence=true`, `linger.ms=0`, `queue.buffering.max.messages=100`, `queue.buffering.max.kbytes=4096`, `allow.auto.create.topics=false`, `message.timeout.ms` = timeout của client). Đóng sau 30 giây không dùng và khi disconnect. Chạy trên executor riêng của client, chờ delivery report bằng `rd_kafka_poll` (không dùng cooperative pool), quá hạn thì purge rồi báo `.timeout`; lỗi hạ tầng (không tới được broker) được giải thích bằng lỗi mà thread của client đã ghi lại. Trước khi gửi, app kiểm tra topic tồn tại và partition hợp lệ bằng metadata, nên gửi vào topic không có sẽ báo "Topic … doesn't exist" ngay và **không** tạo topic. Lưu ý: `enable.idempotence=true` cần broker/ACL cho phép ghi idempotent; cluster cũ có ACL chặt có thể báo lỗi quyền.
+
+**UI:** sheet có Partition (Auto / 0…n−1), Key, Value (soạn thảo monospaced, bật *Null (tombstone)* thì khoá ô soạn), Headers (Text/Hex/Null cho từng giá trị), Timestamp tuỳ chọn, và *Repeat* 1…1000 lần có tiến độ + Stop. Báo lỗi tại chỗ (icon + chữ), hiển thị kích thước "12 KB of 1 MB", gửi bằng ⌘Return. Thành công hiện "Sent to partition P at offset O" với *Send Another* (giữ nguyên các trường). Cluster **Production** hỏi gõ lại tên topic trước khi gửi; Local/Staging gửi luôn; read-only thì nút bị tắt kèm tooltip. Sau khi gửi, nếu tab Messages đã có dữ liệu thì hiện gợi ý "New message available — Fetch again" (không tự fetch, không polling).
+
+**Test:** validation, encoding (hex lẻ/tiền tố/ký tự lạ, JSON), Guarded, Fake (hiện ra ở lần fetch sau), view model (gửi/lỗi/double-submit/read-only/production/prefill/repeat), và itest broker thật chỉ với topic `km-itest-*` (helper `requireTestOwnedTopic` từ chối topic khác).

@@ -53,13 +53,19 @@ struct TopicDetailView: View {
                     switch model.tab {
                     case .partitions: PartitionsTable(partitions: detail.partitions)
                     case .config: ConfigTable(entries: detail.configEntries)
-                    case .messages: MessagesView(model: model.messages)
+                    case .messages:
+                        MessagesView(
+                            model: model.messages,
+                            produceAgain: ProduceAgainControl(gate: model.writeGate, open: { model.requestProduce(prefill: $0) }))
                     case .groups: TopicGroupsView(model: model.groups, openGroup: model.openGroup)
                     }
                 }
             }
         }
         .topAlignedColumn()
+        .sheet(item: $model.produceForm) { form in
+            ProduceSheet(model: form)
+        }
         // Loads once per topic; a changed count is an explicit refresh.
         .task(id: refreshCount) {
             if refreshCount == 0 { await model.loadIfNeeded() } else { await model.refresh() }
@@ -82,6 +88,13 @@ struct TopicDetailView: View {
             }
             .help(Text("Refresh this topic"))
             .disabled(model.isRefreshing || model.state.isLoading)
+            Button {
+                model.requestProduce()
+            } label: {
+                Label("Produce…", systemImage: "paperplane")
+            }
+            .help(Text(model.writeGate.disabledReason ?? String(localized: "Send a message to this topic")))
+            .disabled(!model.writeGate.allowsWrites || model.state.value == nil)
             if let delete {
                 Button(role: .destructive, action: delete.action) {
                     Label("Delete Topic…", systemImage: "trash")

@@ -4,7 +4,7 @@ import os
 /// In-memory `KafkaClient` for tests and previews, with failure and latency injection.
 public actor FakeKafkaClient: KafkaClient {
     public enum Method: Hashable, Sendable {
-        case connect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup, previewOffsetReset, resetOffsets
+        case connect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup, previewOffsetReset, resetOffsets, produce
     }
 
     /// A topic with its partition layout, config and stored messages.
@@ -33,6 +33,7 @@ public actor FakeKafkaClient: KafkaClient {
     private var nextFailure: KafkaError?
     private var persistentFailures: [Method: KafkaError] = [:]
     private var midStreamFailure: (after: Int, error: KafkaError)?
+    private var roundRobin: [String: Int] = [:]
 
     /// - Parameters:
     ///   - host: reported by `.unreachable` before any `connect`; afterwards the connected cluster's first bootstrap server is used.
@@ -142,6 +143,48 @@ public actor FakeKafkaClient: KafkaClient {
         try await begin(.deleteTopic)
         guard topics.removeValue(forKey: name) != nil else { throw KafkaError.unknownTopic(name) }
         messages[name] = nil
+    }
+
+    // MARK: Produce
+
+    /// Appends to the stored partition, so the next fetch returns the message. Without a partition, a key picks one by
+    /// a stable hash and keyless messages go round-robin.
+    public func produce(_ request: ProduceRequest) async throws -> ProduceResult {
+        try await begin(.produce)
+        if let error = ProduceValidator.error(for: ProduceValidator.issues(for: request)) { throw error }
+        guard let detail = topics[request.topic] else { throw KafkaError.unknownTopic(request.topic) }
+        let ids = detail.partitions.map(\.id).sorted()
+        guard !ids.isEmpty else { throw KafkaError.unknownTopic(request.topic) }
+        let partition: Int
+        if let requested = request.partition {
+            guard ids.contains(requested) else { throw KafkaError.unknownTopic(request.topic) }
+            partition = requested
+        } else if let key = request.key {
+            partition = ids[Int(Self.stableHash(key) % UInt64(ids.count))]
+        } else {
+            let next = roundRobin[request.topic, default: 0]
+            roundRobin[request.topic] = next + 1
+            partition = ids[next % ids.count]
+        }
+        let stored = messages[request.topic]?[partition] ?? []
+        let info = detail.partitions.first { $0.id == partition }
+        let offset = max(info?.endOffset ?? 0, (stored.last?.offset).map { $0 + 1 } ?? 0)
+        let timestamp = request.timestamp ?? Date()
+        messages[request.topic, default: [:]][partition, default: []].append(KafkaMessage(
+            partition: partition, offset: offset, timestamp: timestamp, key: request.key, value: request.value,
+            headers: request.headers, timestampType: .createTime))
+        let partitions = detail.partitions.map { current in
+            current.id == partition
+                ? PartitionInfo(id: current.id, leader: current.leader, replicas: current.replicas, isr: current.isr,
+                                startOffset: current.startOffset, endOffset: offset + 1)
+                : current
+        }
+        topics[request.topic] = TopicDetail(name: detail.name, partitions: partitions, configEntries: detail.configEntries)
+        return ProduceResult(partition: partition, offset: offset, timestamp: timestamp)
+    }
+
+    private static func stableHash(_ data: Data) -> UInt64 {
+        data.reduce(14_695_981_039_346_656_037) { ($0 ^ UInt64($1)) &* 1_099_511_628_211 }
     }
 
     // MARK: Messages

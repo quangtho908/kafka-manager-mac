@@ -7,7 +7,9 @@ extension FakeKafkaClient {
 
     /// Deterministic dataset for previews and perf checks. The first two topics (`orders`, `payments`)
     /// carry messages and consumer groups: one partition with no commit, one committed past the log end.
-    public static func sampleData(topicCount: Int = 5000, messagesPerPartition: Int = sampleMessagesPerPartition) -> FakeKafkaClient {
+    public static func sampleData(
+        topicCount: Int = 5000, messagesPerPartition: Int = sampleMessagesPerPartition, latency: Duration = .zero
+    ) -> FakeKafkaClient {
         var seeds: [SeedTopic] = (0..<topicCount).map { index in
             switch index {
             case 0: sampleTopic(name: "orders", messagesPerPartition: messagesPerPartition)
@@ -16,7 +18,7 @@ extension FakeKafkaClient {
             }
         }
         seeds.sort { $0.detail.name < $1.detail.name }
-        return FakeKafkaClient(topics: seeds, groups: topicCount >= 2 ? sampleGroups(end: Int64(messagesPerPartition)) : [])
+        return FakeKafkaClient(topics: seeds, groups: topicCount >= 2 ? sampleGroups(end: Int64(messagesPerPartition)) : [], latency: latency)
     }
 
     /// `variant` makes some generated topics unhealthy or customised, deterministically: every 7th has an

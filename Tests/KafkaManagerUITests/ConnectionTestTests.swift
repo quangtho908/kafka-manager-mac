@@ -36,6 +36,7 @@ private final class RecordingClient: KafkaClient, Sendable {
     func previewOffsetReset(group: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview {
         try await wrapped.previewOffsetReset(group: group, target: target, scope: scope)
     }
+    func produce(_ request: ProduceRequest) async throws -> ProduceResult { try await wrapped.produce(request) }
     func resetOffsets(group: String, plan: OffsetResetPlan) async throws -> OffsetResetResult { try await wrapped.resetOffsets(group: group, plan: plan) }
 }
 

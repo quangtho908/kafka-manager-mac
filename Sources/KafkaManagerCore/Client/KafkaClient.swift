@@ -16,6 +16,10 @@ public protocol KafkaClient: Sendable {
     // Messages
     func fetchMessages(_ query: MessageQuery) -> AsyncThrowingStream<KafkaMessage, Error>
 
+    // Produce
+    /// Write operation: sends one message and returns where the broker stored it. Never creates the topic.
+    func produce(_ request: ProduceRequest) async throws -> ProduceResult
+
     // Consumer groups
     func listGroups() async throws -> [GroupSummary]
     func describeGroup(_ id: String) async throws -> GroupDetail

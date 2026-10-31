@@ -58,6 +58,9 @@ public final class MessagesViewModel {
     public var sortKey = MessageSortKey.timestamp
     public var sortAscending = false
     public var selection: MessageID?
+    /// True when a message was sent to this topic after the rows on screen were fetched. A hint only: nothing is fetched
+    /// until the user asks.
+    public private(set) var hasNewMessage = false
 
     @ObservationIgnored private let session: ClusterSession
     @ObservationIgnored public let topicName: String
@@ -168,6 +171,7 @@ public final class MessagesViewModel {
         let id = generation
         let (query, notes) = resolvedQuery()
         queryNotes = notes
+        hasNewMessage = false
         rows = []
         buffer = []
         selection = nil
@@ -177,6 +181,11 @@ public final class MessagesViewModel {
         let task = Task { await self.run(query, id: id) }
         inner = task
         await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+    }
+
+    /// A message was sent to this topic. Only matters once messages have been fetched.
+    public func noteMessageProduced() {
+        if status != .idle { hasNewMessage = true }
     }
 
     /// Ends a running fetch; the rows received so far stay.

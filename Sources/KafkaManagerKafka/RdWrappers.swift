@@ -44,6 +44,12 @@ final class RdConf {
         if let pointer { rd_kafka_conf_set_error_cb(pointer, callback) }
     }
 
+    /// Called from `rd_kafka_poll` (on the thread that polls) once per produced message, with its per-message opaque in
+    /// `_private`.
+    func setDeliveryCallback(_ callback: @convention(c) (OpaquePointer?, UnsafePointer<rd_kafka_message_t>?, UnsafeMutableRawPointer?) -> Void) {
+        if let pointer { rd_kafka_conf_set_dr_msg_cb(pointer, callback) }
+    }
+
     func setOpaque(_ value: UnsafeMutableRawPointer?) {
         if let pointer { rd_kafka_conf_set_opaque(pointer, value) }
     }

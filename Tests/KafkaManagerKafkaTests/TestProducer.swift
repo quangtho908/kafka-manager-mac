@@ -29,56 +29,19 @@ final class TestProducer {
         guard remaining == RD_KAFKA_RESP_ERR_NO_ERROR else { throw RdFailure.code(remaining.rawValue) }
     }
 
+    /// Only `km-itest-*` topics: the helper refuses anything else before a byte is queued.
     private func produce(_ message: TestMessage, to topic: String) throws {
-        var allocations: [UnsafeMutableRawPointer] = []
-        defer { allocations.forEach { $0.deallocate() } }
-        func copy(_ data: Data) -> UnsafeMutableRawPointer {
-            // At least one byte, so an empty value still has a non-null pointer.
-            let pointer = UnsafeMutableRawPointer.allocate(byteCount: max(data.count, 1), alignment: 1)
-            data.copyBytes(to: pointer.assumingMemoryBound(to: UInt8.self), count: data.count)
-            allocations.append(pointer)
-            return pointer
-        }
-        func cString(_ text: String) -> UnsafePointer<CChar> {
-            let bytes = Array(text.utf8CString)
-            let pointer = UnsafeMutablePointer<CChar>.allocate(capacity: bytes.count)
-            pointer.initialize(from: bytes, count: bytes.count)
-            allocations.append(UnsafeMutableRawPointer(pointer))
-            return UnsafePointer(pointer)
-        }
-        var vus: [rd_kafka_vu_t] = []
-        var topicVU = rd_kafka_vu_t(); topicVU.vtype = RD_KAFKA_VTYPE_TOPIC
-        topicVU.u.cstr = cString(topic); vus.append(topicVU)
-        var partitionVU = rd_kafka_vu_t(); partitionVU.vtype = RD_KAFKA_VTYPE_PARTITION
-        partitionVU.u.i32 = message.partition; vus.append(partitionVU)
-        var flagsVU = rd_kafka_vu_t(); flagsVU.vtype = RD_KAFKA_VTYPE_MSGFLAGS
-        flagsVU.u.i = RD_KAFKA_MSG_F_COPY; vus.append(flagsVU)
-        var valueVU = rd_kafka_vu_t(); valueVU.vtype = RD_KAFKA_VTYPE_VALUE
-        if let value = message.value { valueVU.u.mem.ptr = copy(value); valueVU.u.mem.size = value.count }
-        vus.append(valueVU)
-        var keyVU = rd_kafka_vu_t(); keyVU.vtype = RD_KAFKA_VTYPE_KEY
-        if let key = message.key { keyVU.u.mem.ptr = copy(key); keyVU.u.mem.size = key.count }
-        vus.append(keyVU)
-        if let timestamp = message.timestampMs {
-            var timestampVU = rd_kafka_vu_t(); timestampVU.vtype = RD_KAFKA_VTYPE_TIMESTAMP
-            timestampVU.u.i64 = timestamp; vus.append(timestampVU)
-        }
-        for header in message.headers {
-            var headerVU = rd_kafka_vu_t(); headerVU.vtype = RD_KAFKA_VTYPE_HEADER
-            headerVU.u.header.name = cString(header.name)
-            if let value = header.value {
-                headerVU.u.header.val = UnsafeRawPointer(copy(value)); headerVU.u.header.size = value.count
-            } else {
-                headerVU.u.header.val = nil; headerVU.u.header.size = 0
-            }
-            vus.append(headerVU)
-        }
-        if let error = rd_kafka_produceva(client.pointer, vus, vus.count) {
-            let code = rd_kafka_error_code(error)
-            rd_kafka_error_destroy(error)
-            throw RdFailure.code(code.rawValue)
-        }
+        try requireTestOwnedTopic(topic)
+        try RdProduce.enqueue(
+            client: client, topic: topic, partition: message.partition, key: message.key, value: message.value,
+            headers: message.headers.map { RdProduce.Header(name: $0.name, value: $0.value) },
+            timestampMs: message.timestampMs, opaque: nil)
     }
+}
+
+/// Every test produce goes through this: it refuses any topic that is not one the test created itself.
+func requireTestOwnedTopic(_ topic: String) throws {
+    guard topic.hasPrefix("km-itest-"), topic.count > "km-itest-".count else { throw RdFailure.config("not a test-owned topic: \(topic)") }
 }
 
 /// Existing consumer groups as (name, state, member count): a snapshot to prove a read changed nothing.

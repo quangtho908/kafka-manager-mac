@@ -4,6 +4,7 @@ import KafkaManagerCore
 /// Query bar, filter and results table for one topic's messages. Selecting a row only records the selection.
 struct MessagesView: View {
     @Bindable var model: MessagesViewModel
+    let produceAgain: ProduceAgainControl?
 
     /// Bumped by Fetch; `.task(id:)` runs the fetch and cancels it when the view goes away or the token changes.
     @State private var runToken = 0
@@ -24,6 +25,11 @@ struct MessagesView: View {
         static let tableMinHeight: Double = 120
         static let keyMin: Double = 80
         static let valueMin: Double = 160
+    }
+
+    init(model: MessagesViewModel, produceAgain: ProduceAgainControl? = nil) {
+        self.model = model
+        self.produceAgain = produceAgain
     }
 
     var body: some View {
@@ -148,7 +154,7 @@ struct MessagesView: View {
         if let row = model.selectedRow {
             VSplitView {
                 results.frame(minHeight: Metrics.tableMinHeight)
-                MessageDetailView(topic: model.topicName, message: row.message, clipboard: clipboard)
+                MessageDetailView(topic: model.topicName, message: row.message, clipboard: clipboard, produceAgain: produceAgain)
                     .id(row.id)
             }
         } else {
@@ -223,6 +229,11 @@ struct MessagesView: View {
                     .disabled(!model.canCopyRaw(.key, of: id))
                 Button("Copy Raw Value") { model.copyRaw(.value, of: id, to: clipboard) }
                     .disabled(!model.canCopyRaw(.value, of: id))
+                if let produceAgain, let message = model.visibleRows.first(where: { $0.id == id })?.message {
+                    Divider()
+                    Button("Produce Again…") { produceAgain.open(message) }
+                        .disabled(!produceAgain.gate.allowsWrites)
+                }
             }
         }
     }
@@ -232,6 +243,12 @@ struct MessagesView: View {
             Text(model.statusText).font(.caption).foregroundStyle(.secondary).monospacedDigit()
             if let note = model.limitNote {
                 Text(note).font(.caption).foregroundStyle(.orange)
+            }
+            if model.hasNewMessage {
+                Label("New message available", systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
+                Button("Fetch again") { runToken += 1 }
+                    .controlSize(.small)
+                    .disabled(model.isFetching)
             }
             Spacer()
             if !model.searchText.isEmpty, !model.rows.isEmpty {

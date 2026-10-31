@@ -15,7 +15,7 @@ public enum LiveErrorMapping {
         case code32(RD_KAFKA_RESP_ERR__TRANSPORT), code32(RD_KAFKA_RESP_ERR__ALL_BROKERS_DOWN),
              code32(RD_KAFKA_RESP_ERR__RESOLVE), code32(RD_KAFKA_RESP_ERR__DESTROY_BROKER):
             return .unreachable(host: host)
-        case code32(RD_KAFKA_RESP_ERR__TIMED_OUT), code32(RD_KAFKA_RESP_ERR__TIMED_OUT_QUEUE),
+        case code32(RD_KAFKA_RESP_ERR__TIMED_OUT), code32(RD_KAFKA_RESP_ERR__TIMED_OUT_QUEUE), code32(RD_KAFKA_RESP_ERR__MSG_TIMED_OUT),
              code32(RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT):
             return .timeout
         case code32(RD_KAFKA_RESP_ERR__AUTHENTICATION), code32(RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED),
@@ -33,6 +33,8 @@ public enum LiveErrorMapping {
              code32(RD_KAFKA_RESP_ERR_ILLEGAL_GENERATION), code32(RD_KAFKA_RESP_ERR_GROUP_SUBSCRIBED_TO_TOPIC),
              code32(RD_KAFKA_RESP_ERR_REBALANCE_IN_PROGRESS):
             return .clusterError(code: KafkaError.nonEmptyGroupCode, message: sanitize(detail, code: code, secrets: secrets))
+        case code32(RD_KAFKA_RESP_ERR_MSG_SIZE_TOO_LARGE):
+            return .clusterError(code: KafkaError.messageTooLargeCode, message: sanitize(detail, code: code, secrets: secrets))
         case code32(RD_KAFKA_RESP_ERR_TOPIC_ALREADY_EXISTS):
             return .topicAlreadyExists(resource)
         case code32(RD_KAFKA_RESP_ERR_TOPIC_EXCEPTION):

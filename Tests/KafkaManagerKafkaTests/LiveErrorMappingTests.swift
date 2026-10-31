@@ -65,6 +65,16 @@ struct LiveErrorMappingTests {
         #expect(!Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE).isNonEmptyGroup)
     }
 
+    @Test func produceFailuresMapToFriendlyErrors() {
+        #expect(Self.map(RD_KAFKA_RESP_ERR__MSG_TIMED_OUT) == .timeout)
+        let tooLarge = Self.map(RD_KAFKA_RESP_ERR_MSG_SIZE_TOO_LARGE)
+        #expect(tooLarge == .clusterError(code: KafkaError.messageTooLargeCode, message: tooLarge.diagnosticText))
+        #expect(tooLarge.userMessage.contains("larger than the cluster accepts"))
+        #expect(Self.map(RD_KAFKA_RESP_ERR__UNKNOWN_TOPIC) == .unknownTopic("orders"))
+        #expect(Self.map(RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED) == .authorizationFailed(resource: "orders"))
+        #expect(Self.map(RD_KAFKA_RESP_ERR__ALL_BROKERS_DOWN) == .unreachable(host: "broker-1"))
+    }
+
     @Test func unknownCodesBecomeClusterErrorsWithTheirCode() {
         let error = Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE)
         guard case .clusterError(let code, let message) = error else {

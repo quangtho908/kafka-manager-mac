@@ -92,6 +92,7 @@ private struct NoKafkaClient: KafkaClient {
     func listGroups() async throws -> [GroupSummary] { throw Self.failure }
     func describeGroup(_ id: String) async throws -> GroupDetail { throw Self.failure }
     func previewOffsetReset(group: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview { throw Self.failure }
+    func produce(_ request: ProduceRequest) async throws -> ProduceResult { throw Self.failure }
     func resetOffsets(group: String, plan: OffsetResetPlan) async throws -> OffsetResetResult { throw Self.failure }
 }
 #endif

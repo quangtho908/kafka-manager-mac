@@ -13,6 +13,8 @@ public final class TopicDetailViewModel {
     public enum Tab: Hashable, Sendable { case partitions, config, messages, groups }
 
     public var tab = Tab.partitions
+    /// The produce sheet being shown, if any.
+    public var produceForm: ProduceFormViewModel?
 
     @ObservationIgnored private let session: ClusterSession
     @ObservationIgnored private var messagesModel: MessagesViewModel?
@@ -42,6 +44,20 @@ public final class TopicDetailViewModel {
         })
         messagesModel = created
         return created
+    }
+
+    public var writeGate: WriteGate { WriteGate(isReadOnly: session.isReadOnly) }
+
+    /// Opens the produce sheet, empty or filled from `prefill`. Nothing is offered on a read-only cluster.
+    public func requestProduce(prefill: KafkaMessage? = nil) {
+        guard writeGate.allowsWrites else { return }
+        produceForm = ProduceFormViewModel(
+            session: session, topicName: topicName, partitionIDs: state.value?.partitions.map(\.id) ?? [], prefill: prefill,
+            onSent: { [weak self] _ in
+                self?.messagesModel?.noteMessageProduced()
+                // The partitions' end offsets moved.
+                Task { await self?.refresh() }
+            })
     }
 
     /// The groups consuming this topic; created on first use, scanned only while its tab is open.

@@ -7,6 +7,7 @@ struct MessageDetailView: View {
     @State private var model: MessageDetailViewModel
     @State private var copyKind: MessageCopyKind?
     @State private var copyRequest = 0
+    private let produceAgain: ProduceAgainControl?
 
     private enum Metrics {
         static let padding: Double = 12
@@ -16,7 +17,8 @@ struct MessageDetailView: View {
         static let labelWidth: Double = 90
     }
 
-    init(topic: String, message: KafkaMessage, clipboard: any Clipboard) {
+    init(topic: String, message: KafkaMessage, clipboard: any Clipboard, produceAgain: ProduceAgainControl? = nil) {
+        self.produceAgain = produceAgain
         _model = State(initialValue: MessageDetailViewModel(topic: topic, message: message, clipboard: clipboard))
     }
 
@@ -62,6 +64,11 @@ struct MessageDetailView: View {
                 .disabled(!model.canCopy(.value) || model.isCopying)
             Button("Copy Message") { request(.message) }
                 .help(Text("Copies the message as JSON"))
+            if let produceAgain {
+                Button("Produce Again…") { produceAgain.open(model.message) }
+                    .help(Text(produceAgain.gate.disabledReason ?? String(localized: "Send a copy of this message to the topic")))
+                    .disabled(!produceAgain.gate.allowsWrites)
+            }
         }
     }
 

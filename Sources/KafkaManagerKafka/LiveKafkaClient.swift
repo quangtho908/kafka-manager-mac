@@ -15,6 +15,12 @@ public actor LiveKafkaClient: KafkaClient {
 
     let timeoutMs: Int32
     var session: Session?
+    /// How long a producer handle stays open after its last send.
+    let producerIdle: Duration
+    /// Created on the first send, closed after `producerIdle` without one, and on disconnect.
+    var producer: ProducerHandle?
+    var producerUse = 0
+    var producerIdleTask: Task<Void, Never>?
     /// What a fetch needs to open its own consumer; readable without the actor so `fetchMessages` can stay synchronous.
     nonisolated let consumerSettings = OSAllocatedUnfairLock(initialState: ConsumerSettings?.none)
 
@@ -32,7 +38,10 @@ public actor LiveKafkaClient: KafkaClient {
         }
     }
 
-    public init(timeout: Duration = LiveKafkaClient.defaultTimeout) {
+    public static let defaultProducerIdle: Duration = .seconds(30)
+
+    public init(timeout: Duration = LiveKafkaClient.defaultTimeout, producerIdle: Duration = LiveKafkaClient.defaultProducerIdle) {
+        self.producerIdle = producerIdle
         let seconds = timeout.components.seconds
         let millis = Int(seconds) * 1000 + Int(timeout.components.attoseconds / 1_000_000_000_000_000)
         timeoutMs = Int32(clamping: max(millis, 1))
@@ -41,6 +50,7 @@ public actor LiveKafkaClient: KafkaClient {
     // MARK: Connection
 
     public func connect(_ cluster: ClusterConnection, credentials: Credentials?) async throws {
+        closeProducer()
         session = nil
         consumerSettings.withLock { $0 = nil }
         let settings = try ConnectionSettings(cluster: cluster, credentials: credentials)
@@ -58,6 +68,7 @@ public actor LiveKafkaClient: KafkaClient {
     }
 
     public func disconnect() async {
+        closeProducer()
         session = nil
         consumerSettings.withLock { $0 = nil }
     }
@@ -159,7 +170,7 @@ public actor LiveKafkaClient: KafkaClient {
 
     static func makeClient(
         properties: [(key: String, value: String)], secrets: [String], sink: ErrorSink,
-        type: rd_kafka_type_t = RD_KAFKA_PRODUCER
+        type: rd_kafka_type_t = RD_KAFKA_PRODUCER, configure: ((RdConf) -> Void)? = nil
     ) throws -> RdClient {
         let conf = RdConf()
         for (key, value) in properties {
@@ -174,6 +185,7 @@ public actor LiveKafkaClient: KafkaClient {
             guard let opaque else { return }
             Unmanaged<ErrorSink>.fromOpaque(opaque).takeUnretainedValue().record(code: code)
         }
+        configure?(conf)
         do {
             return try RdClient(conf: conf, sink: sink, type: type)
         } catch RdFailure.config(let message) {
