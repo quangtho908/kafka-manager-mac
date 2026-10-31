@@ -45,6 +45,7 @@ struct TopicDetailView: View {
                         Text("Partitions").tag(TopicDetailViewModel.Tab.partitions)
                         Text("Config").tag(TopicDetailViewModel.Tab.config)
                         Text("Messages").tag(TopicDetailViewModel.Tab.messages)
+                        Text("Consumer Groups").tag(TopicDetailViewModel.Tab.groups)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -53,7 +54,7 @@ struct TopicDetailView: View {
                     case .partitions: PartitionsTable(partitions: detail.partitions)
                     case .config: ConfigTable(entries: detail.configEntries)
                     case .messages: MessagesView(model: model.messages)
-                    case .groups: EmptyView()
+                    case .groups: TopicGroupsView(model: model.groups, openGroup: model.openGroup)
                     }
                 }
             }

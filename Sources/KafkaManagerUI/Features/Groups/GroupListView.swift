@@ -8,6 +8,7 @@ public struct GroupListView: View {
     let refreshToken: Int
 
     @State private var refreshCount = 0
+    @State private var lagRequest = 0
     @FocusState private var searchFocused: Bool
 
     private enum Metrics {
@@ -17,6 +18,7 @@ public struct GroupListView: View {
         static let membersMin: Double = 70
         static let membersMax: Double = 100
         static let stateMin: Double = 150
+        static let lagMin: Double = 100
     }
 
     public init(model: GroupListViewModel, refreshToken: Int) {
@@ -50,6 +52,11 @@ public struct GroupListView: View {
         .task(id: refreshCount) {
             if refreshCount == 0 { await model.loadIfNeeded() } else { await model.refresh() }
         }
+        // Lag is loaded only for the rows that match the search, and only after the button was pressed.
+        .task(id: lagRequest) {
+            guard lagRequest > 0 else { return }
+            await model.loadVisibleLag()
+        }
         .onChange(of: refreshToken) { refreshCount += 1 }
         .focusedSceneValue(\.findAction, findAction)
     }
@@ -72,6 +79,16 @@ public struct GroupListView: View {
                 .disabled(model.isRefreshing || model.state.isLoading)
             }
             HStack {
+                Button {
+                    lagRequest += 1
+                } label: {
+                    Label("Load lag", systemImage: "chart.bar")
+                }
+                .controlSize(.small)
+                .help(Text("Loads the total lag of the groups listed below, a few at a time"))
+                .disabled(model.lagLoading || model.state.value == nil)
+                if model.lagLoading { ProgressView().controlSize(.small).accessibilityLabel(Text("Loading lag")) }
+                Text(model.lagStatusText).font(.caption).foregroundStyle(.secondary).monospacedDigit()
                 Spacer()
                 if model.state.value != nil {
                     Text(model.countText)
@@ -97,8 +114,20 @@ public struct GroupListView: View {
                 Text(group.memberCount, format: .number).monospacedDigit()
             }
             .width(min: Metrics.membersMin, max: Metrics.membersMax)
+            TableColumn("Total lag") { group in lagCell(group.id) }
+                .width(min: Metrics.lagMin)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+    }
+
+    @ViewBuilder private func lagCell(_ id: String) -> some View {
+        if let total = model.lagTotals[id] {
+            Text(GroupLag.shortText(total)).monospacedDigit().help(Text("\(GroupLag.exactText(total)) messages"))
+        } else if model.lagUnreadable.contains(id) {
+            Label("no access", systemImage: "lock").foregroundStyle(.secondary)
+        } else {
+            Text("—").foregroundStyle(.secondary)
+        }
     }
 
     /// The view model owns the sort; the table's header just reads and writes it.

@@ -62,6 +62,8 @@ private struct DetailColumn: View {
     var body: some View {
         if shell.selectedSection == .topics, let list = shell.selectedTopicList, let topic = list.selection {
             TopicDetailHost(list: list, topic: topic)
+        } else if shell.selectedSection == .groups, let list = shell.selectedGroupList, let group = list.selection {
+            GroupDetailHost(list: list, group: group)
         } else {
             DetailPlaceholder(section: shell.selectedSection, hasConnection: shell.selectedConnection != nil)
         }
@@ -86,6 +88,24 @@ private struct TopicDetailHost: View {
             }
         }
         .task(id: topic) { model = list.detailModel(for: topic) }
+    }
+}
+
+/// Owns the detail model for the selected group; it is created in a task, not in body.
+private struct GroupDetailHost: View {
+    let list: GroupListViewModel
+    let group: String
+    @State private var model: GroupDetailViewModel?
+
+    var body: some View {
+        Group {
+            if let model, model.groupId == group {
+                GroupDetailView(model: model).id(group)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: group) { model = list.detailModel(for: group) }
     }
 }
 
