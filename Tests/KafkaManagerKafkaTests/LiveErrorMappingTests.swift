@@ -63,6 +63,19 @@ struct LiveErrorMappingTests {
         #expect(!message.isEmpty)
     }
 
+    /// Every code the live client maps, with a hostile detail text: nothing raw may reach `userMessage`.
+    @Test(arguments: [
+        RD_KAFKA_RESP_ERR__TRANSPORT, RD_KAFKA_RESP_ERR__RESOLVE, RD_KAFKA_RESP_ERR__TIMED_OUT, RD_KAFKA_RESP_ERR__AUTHENTICATION,
+        RD_KAFKA_RESP_ERR__SSL, RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED, RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART,
+        RD_KAFKA_RESP_ERR_GROUP_ID_NOT_FOUND, RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE, RD_KAFKA_RESP_ERR_TOPIC_EXCEPTION,
+    ])
+    func noUserMessageCarriesRawTextOrSecrets(code: rd_kafka_resp_err_t) {
+        let raw = "Local: sasl_plaintext://10.0.0.1:9092 getaddrinfo failed password=hunter2-secret"
+        let message = Self.map(code, detail: raw, secrets: ["hunter2-secret"]).userMessage
+        for word in ["Local:", "sasl_", "getaddrinfo", "hunter2-secret", "10.0.0.1", "rdkafka"] { #expect(!message.contains(word), "\(message)") }
+        #expect(!message.isEmpty)
+    }
+
     @Test func userMessageNeverShowsTheRawText() {
         let error = Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE, detail: "raw broker text 12345")
         #expect(!error.userMessage.contains("raw broker text"))

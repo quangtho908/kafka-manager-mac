@@ -5,12 +5,20 @@ import KafkaManagerCore
 // Metadata parsing and the admin requests behind the topic operations.
 extension LiveKafkaClient {
     static func topics(in metadata: RdMetadata) -> [TopicSummary] {
-        let md = metadata.pointer.pointee
-        return (0..<Int(md.topic_cnt)).map { index in
+        topics(in: metadata.pointer.pointee)
+    }
+
+    /// The mapping itself, on the C struct, so it can be checked with synthetic metadata and no broker.
+    static func topics(in md: rd_kafka_metadata) -> [TopicSummary] {
+        var result: [TopicSummary] = []
+        result.reserveCapacity(Int(md.topic_cnt))
+        for index in 0..<Int(md.topic_cnt) {
             let topic = md.topics[index]
-            let replication = (0..<Int(topic.partition_cnt)).map { Int(topic.partitions[$0].replica_cnt) }.max() ?? 0
-            return TopicSummary(name: String(cString: topic.topic), partitionCount: Int(topic.partition_cnt), replicationFactor: replication)
+            var replication = 0
+            for partition in 0..<Int(topic.partition_cnt) { replication = max(replication, Int(topic.partitions[partition].replica_cnt)) }
+            result.append(TopicSummary(name: String(cString: topic.topic), partitionCount: Int(topic.partition_cnt), replicationFactor: replication))
         }
+        return result
     }
 
     /// Partitions of the one topic a metadata call was limited to, without offsets yet.

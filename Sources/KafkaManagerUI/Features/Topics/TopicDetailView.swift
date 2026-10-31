@@ -120,7 +120,15 @@ private struct PartitionsTable: View {
                 TableColumn("ID") { Text($0.id, format: .number.grouping(.never)).monospacedDigit() }.width(min: Metrics.idWidth.lowerBound, max: Metrics.idWidth.upperBound)
                 TableColumn("Leader") { Text($0.leaderText).monospacedDigit() }.width(min: Metrics.leaderWidth.lowerBound, max: Metrics.leaderWidth.upperBound)
                 TableColumn("Replicas") { Text($0.replicasText).monospacedDigit() }
-                TableColumn("ISR") { Text($0.isrText).monospacedDigit() }
+                TableColumn("ISR") { row in
+                    HStack(spacing: Metrics.tableGap) {
+                        Text(row.isrText).monospacedDigit()
+                        // Icon and words: color is not the only signal.
+                        if let missing = row.outOfSyncText {
+                            Label(missing, systemImage: PartitionFlag.underReplicated.symbolName).foregroundStyle(.orange)
+                        }
+                    }
+                }
                 TableColumn("Start") { Text($0.startOffset, format: .number).monospacedDigit() }
                 TableColumn("End") { Text($0.endOffset, format: .number).monospacedDigit() }
                 TableColumn("Messages") { Text($0.messageCount, format: .number).monospacedDigit() }

@@ -15,6 +15,8 @@ public struct EnvironmentBannerPresentation: Sendable, Equatable {
     }
 
     public var environmentLabel: String { environment.label }
+    /// First line of the banner: which cluster, in which environment.
+    public var title: String { String(localized: "\(clusterName) · \(environmentLabel)") }
     public var environmentSymbol: String { environment.symbolName }
     public var tone: EnvironmentTone { environment.tone }
     /// Production is drawn heavier: a solid fill instead of a tint.

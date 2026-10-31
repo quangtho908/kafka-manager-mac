@@ -356,6 +356,11 @@ private func connectedFake(topics: [FakeKafkaClient.SeedTopic] = []) async throw
     #expect(messages.allSatisfy { !$0.contains("code") && !$0.contains("raw") })
 }
 
+@Test func unknownGroupHasAFriendlyUserMessage() {
+    let message = KafkaError.clusterError(code: KafkaError.groupIdNotFoundCode, message: "raw").userMessage
+    #expect(message.contains("group") && !message.contains("code") && !message.contains("raw"))
+}
+
 @Test func failedConnectLeavesTheClientDisconnected() async throws {
     let fake = try await connectedFake(topics: [])
     await fake.failing(.connect, with: .timeout)

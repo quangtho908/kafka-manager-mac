@@ -22,6 +22,15 @@ struct TopicDetailPresentationTests {
         #expect(PartitionPresentation.row(partition(0, replicas: [1], isr: [1])).isHealthy)
     }
 
+    @Test func brokersMissingFromTheIsrAreNamedInOrder() {
+        let row = PartitionPresentation.row(partition(0, replicas: [3, 1, 2], isr: [1]))
+        #expect(row.outOfSync == [3, 2])
+        #expect(row.outOfSyncText == "out of sync: 3, 2")
+        #expect(PartitionPresentation.row(partition(0)).outOfSyncText == nil)
+        // A broker in the ISR that is not a replica any more is not "missing".
+        #expect(PartitionPresentation.row(partition(0, replicas: [1], isr: [1, 9])).outOfSync.isEmpty)
+    }
+
     @Test func leaderlessWhenNilOrMinusOne() {
         for leader in [nil, -1] as [Int?] {
             let row = PartitionPresentation.row(partition(0, leader: leader))

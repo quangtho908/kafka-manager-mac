@@ -27,6 +27,8 @@ public struct PartitionRow: Identifiable, Sendable, Equatable {
     public let leaderText: String
     public let replicasText: String
     public let isrText: String
+    /// Replicas that are not in the ISR, in replica order.
+    public let outOfSync: [Int]
     public let startOffset: Int64
     public let endOffset: Int64
     /// end − start, never negative.
@@ -34,6 +36,10 @@ public struct PartitionRow: Identifiable, Sendable, Equatable {
     public let flags: [PartitionFlag]
 
     public var isHealthy: Bool { flags.isEmpty }
+    /// "out of sync: 3"; nil when every replica is in the ISR.
+    public var outOfSyncText: String? {
+        outOfSync.isEmpty ? nil : String(localized: "out of sync: \(outOfSync.map(String.init).joined(separator: ", "))")
+    }
     public var flagsText: String { flags.map(\.label).formatted(.list(type: .and, width: .narrow)) }
 }
 
@@ -52,6 +58,7 @@ public enum PartitionPresentation {
             leaderText: partition.isLeaderless ? "—" : partition.leader.map(String.init) ?? "—",
             replicasText: list(partition.replicas),
             isrText: list(partition.isr),
+            outOfSync: partition.replicas.filter { !partition.isr.contains($0) },
             startOffset: partition.startOffset,
             endOffset: partition.endOffset,
             messageCount: partition.messageCount,

@@ -18,7 +18,9 @@ struct EnvironmentBanner: View {
     var body: some View {
         HStack(spacing: Metrics.spacing) {
             VStack(alignment: .leading, spacing: 2) {
-                Label(presentation.environmentLabel, systemImage: presentation.environmentSymbol)
+                Label(presentation.title, systemImage: presentation.environmentSymbol)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                     .font(presentation.isEmphasized ? .headline : .subheadline.weight(.semibold))
                 Label(presentation.readOnlyLabel, systemImage: presentation.readOnlySymbol)
                     .font(.caption)

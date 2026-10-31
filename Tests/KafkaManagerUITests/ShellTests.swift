@@ -99,6 +99,12 @@ struct ShellViewModelTests {
     }
 }
 
+@Test func bannerTitleNamesTheClusterAndTheEnvironment() {
+    let presentation = EnvironmentBannerPresentation(clusterName: "prod-eu", environment: .production, isReadOnly: true)
+    #expect(presentation.title.contains("prod-eu"))
+    #expect(presentation.title.contains(ClusterConnection.Environment.production.label))
+}
+
 @Suite("Session status presentation")
 struct SessionStatusPresentationTests {
     typealias Status = ClusterSession.Status

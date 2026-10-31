@@ -38,7 +38,8 @@ if hasVendor {
                 .linkedLibrary("z"),
             ]),
         // Unit tests need no broker; the integration tests inside are skipped unless KM_ITEST=1 (scripts/dev.sh itest).
-        .testTarget(name: "KafkaManagerKafkaTests", dependencies: ["KafkaManagerKafka", "KafkaManagerCore", "CRdKafka"]),
+        // KafkaManagerUI lets them drive a ClusterSession and ClientConnectionTester on the live client.
+        .testTarget(name: "KafkaManagerKafkaTests", dependencies: ["KafkaManagerKafka", "KafkaManagerUI", "KafkaManagerCore", "CRdKafka"]),
     ]
 }
 
