@@ -26,6 +26,7 @@ public struct ConnectionListView: View {
             }
             content
         }
+        .topAlignedColumn()
         .toolbar {
             ToolbarItem {
                 Button("New Connection", systemImage: "plus", action: showNewForm)

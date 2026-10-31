@@ -182,6 +182,7 @@ private struct ConnectedColumn: View {
             Divider()
             sectionContent
         }
+        .topAlignedColumn()
         .navigationTitle(connection.name)
         // Resolved in a task, not in body; a profile edit re-resolves and the registry resets the session.
         .task(id: connection) {

@@ -38,8 +38,7 @@ struct MessagesView: View {
             resultsAndDetail
             statusBar
         }
-        // Fill the column and start at the top; without this an empty result area lets the whole tab float to the middle.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .topAlignedColumn()
         .task(id: runToken) {
             guard runToken > 0 else { return }
             await model.fetch()

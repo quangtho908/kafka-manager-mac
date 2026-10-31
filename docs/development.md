@@ -25,6 +25,7 @@ scripts/dev.sh              build | test | run
 - View model: `@Observable` + `@MainActor`, chỉ gọi service trong Core.
 - SwiftUI trước; AppKit (`NSViewRepresentable`) chỉ khi SwiftUI không làm được (vd. bảng message rất lớn).
 - Test dùng Swift Testing (`import Testing`, `@Test`, `#expect`), không dùng XCTest.
+- Mọi gốc của một cột hoặc tab (list, detail, tab trong detail, cột giữa của shell) phải gọi `.topAlignedColumn()` (Shared/TopAlignedColumn.swift); nếu không, nội dung không giãn (empty state, placeholder) bị căn giữa theo chiều dọc. Chỉ placeholder thuần (`ContentUnavailableView`) mới được ở giữa. Kiểm bằng AX: y của phần tử đầu tiên phải sát đỉnh cột ở cửa sổ cao lẫn thấp.
 - Hướng dẫn SwiftUI chi tiết: skill `swiftui-macos` trong `.claude/skills/`.
 
 ## Kafka local để thử

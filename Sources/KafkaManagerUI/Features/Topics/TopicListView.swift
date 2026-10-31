@@ -59,6 +59,7 @@ public struct TopicListView: View {
                 }
             }
         }
+        .topAlignedColumn()
         // First run loads when needed (and reloads a list older than 30 s); later runs are explicit refreshes.
         .task(id: refreshCount) {
             if refreshCount == 0 { await model.loadIfNeeded() } else { await model.refresh() }
