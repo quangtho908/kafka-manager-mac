@@ -33,6 +33,16 @@ public struct MessageHeader: Hashable, Sendable {
     }
 }
 
+/// Who set a message's timestamp.
+public enum TimestampType: String, Hashable, Sendable {
+    /// The producer set it.
+    case createTime
+    /// The broker set it when appending to the log.
+    case logAppendTime
+    /// The message has no timestamp (old message format); `KafkaMessage.timestamp` is the Unix epoch then.
+    case notAvailable
+}
+
 public struct KafkaMessage: Hashable, Sendable {
     public let partition: Int
     public let offset: Int64
@@ -40,6 +50,8 @@ public struct KafkaMessage: Hashable, Sendable {
     public let key: Data?
     public let value: Data?
     public let headers: [MessageHeader]
+    /// nil when the source doesn't say (the fake client).
+    public let timestampType: TimestampType?
 
     public init(
         partition: Int,
@@ -47,7 +59,8 @@ public struct KafkaMessage: Hashable, Sendable {
         timestamp: Date,
         key: Data?,
         value: Data?,
-        headers: [MessageHeader] = []
+        headers: [MessageHeader] = [],
+        timestampType: TimestampType? = nil
     ) {
         self.partition = partition
         self.offset = offset
@@ -55,5 +68,6 @@ public struct KafkaMessage: Hashable, Sendable {
         self.key = key
         self.value = value
         self.headers = headers
+        self.timestampType = timestampType
     }
 }

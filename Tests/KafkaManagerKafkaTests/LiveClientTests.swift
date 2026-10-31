@@ -56,11 +56,15 @@ extension LiveSerial {
         let client = LiveKafkaClient()
         await #expect(throws: LiveKafkaClient.notImplemented) { try await client.listGroups() }
         await #expect(throws: LiveKafkaClient.notImplemented) { try await client.describeGroup("g") }
+    }
+
+    @Test func fetchBeforeConnectFailsAsUnreachable() async {
+        let client = LiveKafkaClient()
         var failure: (any Error)?
         do {
             for try await _ in client.fetchMessages(MessageQuery(topic: "t", start: .earliest, limit: 1)) {}
         } catch { failure = error }
-        #expect(failure as? KafkaError == LiveKafkaClient.notImplemented)
+        #expect(failure as? KafkaError == .unreachable(host: "the cluster"))
     }
 
     @Test func operationsBeforeConnectFailAsUnreachable() async {

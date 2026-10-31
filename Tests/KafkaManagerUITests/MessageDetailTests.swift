@@ -237,6 +237,17 @@ struct MessageDetailViewModelTests {
         #expect(m.lastCopy == nil)
     }
 
+    @Test func timestampTypeRowAppearsOnlyWhenKnown() {
+        let unknown = model(msg()).metadataRows.map(\.label)
+        #expect(!unknown.contains("Timestamp type"))
+        for type in [TimestampType.createTime, .logAppendTime, .notAvailable] {
+            let message = KafkaMessage(partition: 0, offset: 0, timestamp: Date(timeIntervalSince1970: 0), key: nil, value: nil, timestampType: type)
+            let rows = model(message).metadataRows
+            #expect(rows.map(\.label).contains("Timestamp type"))
+            #expect(rows.first { $0.label == "Timestamp type" }?.value == MessageDetailViewModel.timestampTypeText(type))
+        }
+    }
+
     @Test func headersAndMetadata() {
         let headers = [MessageHeader(key: "trace", value: Data("abc".utf8)), MessageHeader(key: "bin", value: Data([0xFF, 0x00])), MessageHeader(key: "n", value: nil)]
         let m = model(msg(headers: headers))

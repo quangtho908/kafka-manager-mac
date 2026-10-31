@@ -49,9 +49,9 @@ final class RdConf {
     }
 
     /// Hands the configuration to a new client. On success librdkafka owns it; on failure it is still ours.
-    fileprivate func makeClient() -> (OpaquePointer?, String) {
+    fileprivate func makeClient(type: rd_kafka_type_t) -> (OpaquePointer?, String) {
         guard let conf = pointer else { return (nil, "configuration already used") }
-        let (client, message) = withErrorBuffer { rd_kafka_new(RD_KAFKA_PRODUCER, conf, $0, $1) }
+        let (client, message) = withErrorBuffer { rd_kafka_new(type, conf, $0, $1) }
         if client != nil { pointer = nil }
         return (client, message)
     }
@@ -61,22 +61,33 @@ final class RdConf {
 final class RdClient {
     let pointer: OpaquePointer
     private let sink: Unmanaged<ErrorSink>
+    private let isConsumer: Bool
+    private var isClosed = false
 
     /// Takes the configuration; `sink` receives the client's asynchronous errors and is released with the client.
-    init(conf: RdConf, sink: ErrorSink) throws {
+    init(conf: RdConf, sink: ErrorSink, type: rd_kafka_type_t = RD_KAFKA_PRODUCER) throws {
         let retained = Unmanaged.passRetained(sink)
         conf.setOpaque(retained.toOpaque())
-        let (client, message) = conf.makeClient()
+        let (client, message) = conf.makeClient(type: type)
         guard let client else {
             retained.release()
             throw RdFailure.config(message)
         }
         pointer = client
         self.sink = retained
+        isConsumer = type == RD_KAFKA_CONSUMER
         ResourceCounters.acquired(.client)
     }
 
+    /// A consumer leaves its group state cleanly before it is destroyed. Safe to call twice.
+    func close() {
+        guard isConsumer, !isClosed else { return }
+        isClosed = true
+        rd_kafka_consumer_close(pointer)
+    }
+
     deinit {
+        close()
         rd_kafka_destroy(pointer)
         sink.release()
         ResourceCounters.released(.client)
@@ -103,8 +114,11 @@ final class RdMetadata {
 
 final class RdTopic {
     let pointer: OpaquePointer
+    /// Keeps the client alive until the topic object is released; librdkafka needs that order.
+    private let owner: RdClient
 
     init(client: RdClient, name: String) throws {
+        owner = client
         guard let topic = rd_kafka_topic_new(client.pointer, name, nil) else {
             throw RdFailure.code(rd_kafka_last_error().rawValue)
         }
@@ -120,8 +134,10 @@ final class RdTopic {
 
 final class RdQueue {
     let pointer: OpaquePointer
+    private let owner: RdClient
 
     init(client: RdClient) throws {
+        owner = client
         guard let queue = rd_kafka_queue_new(client.pointer) else { throw RdFailure.code(rd_kafka_last_error().rawValue) }
         pointer = queue
         ResourceCounters.acquired(.queue)
@@ -208,4 +224,45 @@ final class ErrorSink: Sendable {
     func record(code: Int32) { state.withLock { $0 = code } }
     var last: Int32? { state.withLock { $0 } }
     func clear() { state.withLock { $0 = nil } }
+}
+
+final class RdPartitionList {
+    let pointer: UnsafeMutablePointer<rd_kafka_topic_partition_list_t>
+
+    init(capacity: Int) throws {
+        guard let list = rd_kafka_topic_partition_list_new(Int32(capacity)) else { throw RdFailure.code(RD_KAFKA_RESP_ERR__INVALID_ARG.rawValue) }
+        pointer = list
+        ResourceCounters.acquired(.partitionList)
+    }
+
+    deinit {
+        rd_kafka_topic_partition_list_destroy(pointer)
+        ResourceCounters.released(.partitionList)
+    }
+
+    func add(topic: String, partition: Int, offset: Int64) {
+        rd_kafka_topic_partition_list_add(pointer, topic, Int32(partition))?.pointee.offset = offset
+    }
+
+    var elements: [(partition: Int, offset: Int64, error: Int32)] {
+        (0..<Int(pointer.pointee.cnt)).map { index in
+            let element = pointer.pointee.elems[index]
+            return (Int(element.partition), element.offset, element.err.rawValue)
+        }
+    }
+}
+
+/// One result of `rd_kafka_consumer_poll`; freed with the wrapper.
+final class RdMessage {
+    let pointer: UnsafeMutablePointer<rd_kafka_message_t>
+
+    init(_ pointer: UnsafeMutablePointer<rd_kafka_message_t>) {
+        self.pointer = pointer
+        ResourceCounters.acquired(.message)
+    }
+
+    deinit {
+        rd_kafka_message_destroy(pointer)
+        ResourceCounters.released(.message)
+    }
 }

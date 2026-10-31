@@ -29,23 +29,28 @@ extension LiveKafkaClient {
         }.sorted { $0.id < $1.id }
     }
 
-    /// A leaderless partition can't answer, so it keeps 0/0 rather than failing the whole topic. A leader that moved or
-    /// was just elected answers "not leader" for a moment; that is retried a few times.
+    /// A leaderless partition can't answer, so it keeps 0/0 rather than failing the whole topic.
     func watermarks(for partition: PartitionInfo, topic: String, session: Session) async throws -> PartitionInfo {
         guard partition.leader != nil else { return partition }
-        var low: Int64 = 0
-        var high: Int64 = 0
-        var code = RD_KAFKA_RESP_ERR_NO_ERROR
-        for attempt in 0..<Self.watermarkAttempts {
-            code = rd_kafka_query_watermark_offsets(session.client.pointer, topic, Int32(partition.id), &low, &high, timeoutMs)
-            let transient = code == RD_KAFKA_RESP_ERR_NOT_LEADER_FOR_PARTITION || code == RD_KAFKA_RESP_ERR_LEADER_NOT_AVAILABLE
-            if !transient || attempt == Self.watermarkAttempts - 1 { break }
-            try await Task.sleep(for: .milliseconds(200))
-        }
-        guard code == RD_KAFKA_RESP_ERR_NO_ERROR else { throw RdFailure.code(code.rawValue) }
+        let (low, high) = try Self.queryWatermarks(client: session.client, topic: topic, partition: partition.id, timeoutMs: timeoutMs)
         return PartitionInfo(
             id: partition.id, leader: partition.leader, replicas: partition.replicas, isr: partition.isr,
             startOffset: low, endOffset: high)
+    }
+
+    /// Blocking. A leader that moved or was just elected answers "not leader" for a moment; that is retried a few times.
+    static func queryWatermarks(client: RdClient, topic: String, partition: Int, timeoutMs: Int32) throws -> (low: Int64, high: Int64) {
+        var low: Int64 = 0
+        var high: Int64 = 0
+        var code = RD_KAFKA_RESP_ERR_NO_ERROR
+        for attempt in 0..<watermarkAttempts {
+            code = rd_kafka_query_watermark_offsets(client.pointer, topic, Int32(partition), &low, &high, timeoutMs)
+            let transient = code == RD_KAFKA_RESP_ERR_NOT_LEADER_FOR_PARTITION || code == RD_KAFKA_RESP_ERR_LEADER_NOT_AVAILABLE
+            if !transient || attempt == watermarkAttempts - 1 { break }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        guard code == RD_KAFKA_RESP_ERR_NO_ERROR else { throw RdFailure.code(code.rawValue) }
+        return (low, high)
     }
 
     static var watermarkAttempts: Int { 5 }

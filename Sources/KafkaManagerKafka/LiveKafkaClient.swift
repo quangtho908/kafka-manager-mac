@@ -1,12 +1,13 @@
 import CRdKafka
 import Foundation
 import KafkaManagerCore
+import os
 
 /// `KafkaClient` on librdkafka. The handle is created on `connect` and destroyed on `disconnect`; nothing exists before.
 ///
 /// Every blocking C call runs on this actor's own serial queue, never on the cooperative pool. The calls are bounded
 /// by `timeout`, so a cancelled caller waits at most that long. Cancellation is checked between calls.
-/// `fetchMessages`, `listGroups` and `describeGroup` arrive in T60b/T60c and fail with a placeholder error until then.
+/// `listGroups` and `describeGroup` arrive in T60c and fail with a placeholder error until then.
 public actor LiveKafkaClient: KafkaClient {
     public static let defaultTimeout: Duration = .seconds(10)
     /// Code of the placeholder error returned by the operations that are not implemented yet.
@@ -17,6 +18,8 @@ public actor LiveKafkaClient: KafkaClient {
 
     let timeoutMs: Int32
     var session: Session?
+    /// What a fetch needs to open its own consumer; readable without the actor so `fetchMessages` can stay synchronous.
+    nonisolated let consumerSettings = OSAllocatedUnfairLock(initialState: ConsumerSettings?.none)
 
     final class Session {
         let client: RdClient
@@ -42,9 +45,10 @@ public actor LiveKafkaClient: KafkaClient {
 
     public func connect(_ cluster: ClusterConnection, credentials: Credentials?) async throws {
         session = nil
+        consumerSettings.withLock { $0 = nil }
         let settings = try ConnectionSettings(cluster: cluster, credentials: credentials)
         let sink = ErrorSink()
-        let client = try Self.makeClient(settings: settings, sink: sink)
+        let client = try Self.makeClient(properties: settings.properties, secrets: settings.secrets, sink: sink)
         let opened = Session(client: client, sink: sink, host: settings.primaryHost, secrets: settings.secrets)
         do {
             // One small request proves the brokers answer and that authentication works.
@@ -53,10 +57,12 @@ public actor LiveKafkaClient: KafkaClient {
             throw map(error, session: opened, resource: settings.primaryHost)
         }
         session = opened
+        consumerSettings.withLock { $0 = ConsumerSettings(properties: settings.properties, secrets: settings.secrets, host: settings.primaryHost) }
     }
 
     public func disconnect() async {
         session = nil
+        consumerSettings.withLock { $0 = nil }
     }
 
     public func describeCluster() async throws -> ClusterInfo {
@@ -118,11 +124,7 @@ public actor LiveKafkaClient: KafkaClient {
         }
     }
 
-    // MARK: Not implemented yet (T60b / T60c)
-
-    nonisolated public func fetchMessages(_ query: MessageQuery) -> AsyncThrowingStream<KafkaMessage, Error> {
-        AsyncThrowingStream { $0.finish(throwing: Self.notImplemented) }
-    }
+    // MARK: Not implemented yet (T60c)
 
     public func listGroups() async throws -> [GroupSummary] { throw Self.notImplemented }
 
@@ -142,25 +144,32 @@ public actor LiveKafkaClient: KafkaClient {
     /// Turns a low-level failure into a `KafkaError`. A call that only timed out is explained by what the client's
     /// own threads reported meanwhile (all brokers down, bad credentials).
     func map(_ error: any Error, session: Session, resource: String) -> any Error {
+        Self.map(error, sink: session.sink, host: session.host, secrets: session.secrets, resource: resource)
+    }
+
+    static func map(_ error: any Error, sink: ErrorSink, host: String, secrets: [String], resource: String) -> any Error {
         switch error {
         case let error as KafkaError: return error
         case is CancellationError: return error
         case RdFailure.code(let code):
             var effective = code
-            if code == RD_KAFKA_RESP_ERR__TIMED_OUT.rawValue, let reported = session.sink.last { effective = reported }
-            return LiveErrorMapping.map(code: effective, host: session.host, resource: resource, detail: nil, secrets: session.secrets)
+            if code == RD_KAFKA_RESP_ERR__TIMED_OUT.rawValue, let reported = sink.last { effective = reported }
+            return LiveErrorMapping.map(code: effective, host: host, resource: resource, detail: nil, secrets: secrets)
         case RdFailure.config(let message):
-            return LiveErrorMapping.map(code: -1, host: session.host, resource: resource, detail: message, secrets: session.secrets)
+            return LiveErrorMapping.map(code: -1, host: host, resource: resource, detail: message, secrets: secrets)
         default:
-            return LiveErrorMapping.map(code: -1, host: session.host, resource: resource, detail: nil, secrets: session.secrets)
+            return LiveErrorMapping.map(code: -1, host: host, resource: resource, detail: nil, secrets: secrets)
         }
     }
 
-    private static func makeClient(settings: ConnectionSettings, sink: ErrorSink) throws -> RdClient {
+    static func makeClient(
+        properties: [(key: String, value: String)], secrets: [String], sink: ErrorSink,
+        type: rd_kafka_type_t = RD_KAFKA_PRODUCER
+    ) throws -> RdClient {
         let conf = RdConf()
-        for (key, value) in settings.properties {
+        for (key, value) in properties {
             if let problem = conf.set(key, value) {
-                let text = LiveErrorMapping.sanitize(problem, code: -1, secrets: settings.secrets)
+                let text = LiveErrorMapping.sanitize(problem, code: -1, secrets: secrets)
                 throw KafkaError.clusterError(code: -1, message: text)
             }
         }
@@ -171,9 +180,9 @@ public actor LiveKafkaClient: KafkaClient {
             Unmanaged<ErrorSink>.fromOpaque(opaque).takeUnretainedValue().record(code: code)
         }
         do {
-            return try RdClient(conf: conf, sink: sink)
+            return try RdClient(conf: conf, sink: sink, type: type)
         } catch RdFailure.config(let message) {
-            throw KafkaError.clusterError(code: -1, message: LiveErrorMapping.sanitize(message, code: -1, secrets: settings.secrets))
+            throw KafkaError.clusterError(code: -1, message: LiveErrorMapping.sanitize(message, code: -1, secrets: secrets))
         }
     }
 }

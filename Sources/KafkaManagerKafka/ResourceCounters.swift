@@ -3,7 +3,7 @@ import os
 /// Live count of the C objects this module owns, per kind. Every wrapper increments on creation and decrements when it
 /// frees the object, so a leak (or a double free) shows up as a count that does not return to zero. Tests read it.
 public enum ResourceKind: String, Sendable, CaseIterable {
-    case conf, client, metadata, queue, event, adminOptions, topic, adminObject
+    case conf, client, metadata, queue, event, adminOptions, topic, adminObject, partitionList, message
 }
 
 public enum ResourceCounters {

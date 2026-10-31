@@ -118,15 +118,29 @@ public final class MessageDetailViewModel {
     }
 
     public var metadataRows: [MetadataRow] {
-        [
+        var rows = [
             MetadataRow(label: String(localized: "Topic"), value: topic),
             MetadataRow(label: String(localized: "Partition"), value: String(message.partition)),
             MetadataRow(label: String(localized: "Offset"), value: String(message.offset)),
             MetadataRow(label: String(localized: "Timestamp"), value: Self.timestampText(message.timestamp)),
+        ]
+        if let type = message.timestampType {
+            rows.append(MetadataRow(label: String(localized: "Timestamp type"), value: Self.timestampTypeText(type)))
+        }
+        rows += [
             MetadataRow(label: String(localized: "Key size"), value: Self.sizeText(message.key?.count)),
             MetadataRow(label: String(localized: "Value size"), value: Self.sizeText(message.value?.count)),
             MetadataRow(label: String(localized: "Headers"), value: String(message.headers.count)),
         ]
+        return rows
+    }
+
+    nonisolated static func timestampTypeText(_ type: TimestampType) -> String {
+        switch type {
+        case .createTime: String(localized: "Create time (set by the producer)")
+        case .logAppendTime: String(localized: "Log append time (set by the broker)")
+        case .notAvailable: String(localized: "Not available")
+        }
     }
 
     /// Local time with milliseconds and zone, then the epoch milliseconds: "2023-11-14T23:13:20.123+01:00 (1700000000123)".
