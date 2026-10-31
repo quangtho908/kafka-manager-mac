@@ -54,31 +54,18 @@ public struct ConnectionListView: View {
         }
     }
 
-    @ViewBuilder
     private var content: some View {
-        switch model.state {
-        case .idle, .loading:
-            ProgressView("Loading connections…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .failed(let message):
-            ContentUnavailableView {
-                Label("Couldn't load connections", systemImage: "exclamationmark.triangle")
-            } description: {
-                Text(message)
-            } actions: {
-                Button("Retry") { reloadCount += 1 }
-            }
-        case .loaded(let connections) where connections.isEmpty:
-            ContentUnavailableView {
-                Label("No connections yet", systemImage: "externaldrive.badge.plus")
-            } description: {
-                Text("Add a Kafka cluster to get started.")
-            } actions: {
-                Button("New Connection", action: showNewForm)
-            }
-        case .loaded(let connections):
-            list(connections)
-        }
+        StateView(
+            state: model.state,
+            isEmpty: \.isEmpty,
+            loadingTitle: String(localized: "Loading connections…"),
+            failureTitle: String(localized: "Couldn't load connections"),
+            emptyTitle: String(localized: "No connections yet"),
+            emptyMessage: String(localized: "Add a Kafka cluster to get started."),
+            emptySymbol: "externaldrive.badge.plus",
+            retry: { reloadCount += 1 },
+            emptyActions: { Button("New Connection", action: showNewForm) },
+            content: list)
     }
 
     private func list(_ connections: [ClusterConnection]) -> some View {

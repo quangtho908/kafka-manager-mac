@@ -3,7 +3,9 @@ public enum LoadState<Value: Sendable>: Sendable {
     case idle
     case loading
     case loaded(Value)
-    case failed(message: String)
+    /// `message` is the user-facing text (a `userMessage`); `details` is optional technical context that is safe to
+    /// show and copy (never a secret, never raw library output).
+    case failed(message: String, details: String? = nil)
 
     public var value: Value? {
         if case .loaded(let value) = self { value } else { nil }
@@ -14,7 +16,11 @@ public enum LoadState<Value: Sendable>: Sendable {
     }
 
     public var failureMessage: String? {
-        if case .failed(let message) = self { message } else { nil }
+        if case .failed(let message, _) = self { message } else { nil }
+    }
+
+    public var failureDetails: String? {
+        if case .failed(_, let details) = self { details } else { nil }
     }
 }
 
