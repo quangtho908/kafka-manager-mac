@@ -4,6 +4,8 @@ import Foundation
 public protocol KafkaClient: Sendable {
     func connect(_ cluster: ClusterConnection, credentials: Credentials?) async throws
     func disconnect() async
+    /// Read-only cluster metadata (broker count). Requires a connection.
+    func describeCluster() async throws -> ClusterInfo
 
     // Topics
     func listTopics() async throws -> [TopicSummary]

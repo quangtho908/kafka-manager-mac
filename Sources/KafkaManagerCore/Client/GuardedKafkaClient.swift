@@ -49,6 +49,10 @@ public actor GuardedKafkaClient: KafkaClient {
         await inner.disconnect()
     }
 
+    public func describeCluster() async throws -> ClusterInfo {
+        try await inner.describeCluster()
+    }
+
     public func listTopics() async throws -> [TopicSummary] {
         try await inner.listTopics()
     }

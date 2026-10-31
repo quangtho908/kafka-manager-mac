@@ -27,6 +27,9 @@ struct ConnectionFormView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var touched: Set<ValidationIssue.Field> = []
     @State private var saveRequest = 0
+    /// Identifies the running test; setting it to nil cancels it (`.task(id:)` cancels the old task on change).
+    @State private var testRequest: Int?
+    @State private var testCount = 0
 
     private enum Metrics {
         static let width: Double = 480
@@ -59,6 +62,7 @@ struct ConnectionFormView: View {
                     }
                     if model.usesSASL { saslFields(issues: issues) }
                 }
+                Section { testRow }
             }
             .formStyle(.grouped)
             Divider()
@@ -66,6 +70,9 @@ struct ConnectionFormView: View {
         }
         .frame(width: Metrics.width)
         .task { await model.loadStoredPasswordFlag() }
+        .task(id: testRequest) {
+            if testRequest != nil { await model.testConnection() }
+        }
         .task(id: saveRequest) {
             if saveRequest > 0 { await model.save() }
         }
@@ -103,6 +110,47 @@ struct ConnectionFormView: View {
         model.isEditing && model.hasStoredPassword
             ? String(localized: "Saved – leave empty to keep")
             : String(localized: "Optional")
+    }
+
+    // MARK: Test connection
+
+    private var testRow: some View {
+        HStack(spacing: Metrics.footerSpacing) {
+            if model.testState == .testing {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(Text("Testing connection"))
+                Text("Testing…").foregroundStyle(.secondary)
+                Spacer()
+                Button("Cancel Test") { testRequest = nil }
+            } else {
+                Button("Test Connection", action: startTest)
+                    .disabled(!model.canTest)
+                testResult
+                Spacer()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var testResult: some View {
+        switch model.testState {
+        case .success:
+            Label(model.testState.message ?? "", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .font(.callout)
+        case .failure:
+            Label(model.testState.message ?? "", systemImage: "xmark.octagon.fill")
+                .foregroundStyle(.red)
+                .font(.callout)
+        case .idle, .testing:
+            EmptyView()
+        }
+    }
+
+    private func startTest() {
+        testCount += 1
+        testRequest = testCount
     }
 
     // MARK: Footer

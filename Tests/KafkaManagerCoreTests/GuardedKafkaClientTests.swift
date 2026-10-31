@@ -7,7 +7,7 @@ import os
 /// method breaks this file until the method is added to `Method` and classified below.
 final class SpyKafkaClient: KafkaClient, Sendable {
     enum Method: CaseIterable, Hashable, Sendable {
-        case connect, disconnect, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup
+        case connect, disconnect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup
     }
 
     /// Every write method; the guard must block these while read-only.
@@ -27,6 +27,7 @@ final class SpyKafkaClient: KafkaClient, Sendable {
         try await wrapped.connect(cluster, credentials: credentials)
     }
     func disconnect() async { record(.disconnect); await wrapped.disconnect() }
+    func describeCluster() async throws -> ClusterInfo { record(.describeCluster); return try await wrapped.describeCluster() }
     func listTopics() async throws -> [TopicSummary] { record(.listTopics); return try await wrapped.listTopics() }
     func describeTopic(_ name: String) async throws -> TopicDetail { record(.describeTopic); return try await wrapped.describeTopic(name) }
     func createTopic(_ spec: NewTopic) async throws { record(.createTopic); try await wrapped.createTopic(spec) }
@@ -66,6 +67,7 @@ private func invoke(_ method: SpyKafkaClient.Method, on client: some KafkaClient
     switch method {
     case .connect: try await client.connect(cluster, credentials: nil)
     case .disconnect: await client.disconnect()
+    case .describeCluster: _ = try await client.describeCluster()
     case .listTopics: _ = try await client.listTopics()
     case .describeTopic: _ = try await client.describeTopic("orders")
     case .createTopic: try await client.createTopic(newTopic)
@@ -117,6 +119,7 @@ func readOnlyBlocksExactlyTheWriteMethods(method: SpyKafkaClient.Method) async t
 
 @Test func readsReturnTheInnerClientsResultsWhileReadOnly() async throws {
     let fixture = try await Fixture(readOnly: true)
+    #expect(try await fixture.guarded.describeCluster() == fixture.fake.describeCluster())
     #expect(try await fixture.guarded.listTopics() == fixture.fake.listTopics())
     #expect(try await fixture.guarded.describeTopic("orders") == fixture.fake.describeTopic("orders"))
     #expect(try await fixture.guarded.listGroups() == fixture.fake.listGroups())

@@ -7,6 +7,8 @@ import KafkaManagerUI
 @MainActor
 final class AppEnvironment {
     let connections: ConnectionsViewModel
+    /// Empty until a feature asks for a cluster; nothing connects at launch.
+    let sessions: ClusterSessions
 
     init() {
         let store: any ConnectionStore
@@ -15,8 +17,19 @@ final class AppEnvironment {
         } catch {
             store = UnavailableConnectionStore()
         }
-        connections = ConnectionsViewModel(store: store, secrets: KeychainSecretStore())
+        let secrets = KeychainSecretStore()
+        let sessions = ClusterSessions(secrets: secrets, factory: DefaultClientFactory.demo)
+        self.sessions = sessions
+        connections = ConnectionsViewModel(
+            store: store, secrets: secrets, observer: sessions,
+            tester: ClientConnectionTester(factory: DefaultClientFactory.demo))
     }
+}
+
+/// The one place that decides which Kafka client the app talks to.
+enum DefaultClientFactory {
+    /// Demo data for every profile. Replace with LiveKafkaClient in T60.
+    static let demo: ClientFactory = { _ in FakeKafkaClient.sampleData(topicCount: 200) }
 }
 
 extension AppEnvironment {

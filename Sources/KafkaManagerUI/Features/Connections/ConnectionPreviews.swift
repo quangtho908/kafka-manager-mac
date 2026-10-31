@@ -60,6 +60,14 @@ private struct ListPreview: View {
         onSaved: { _ in })
 }
 
+#Preview("Form – test connection") {
+    ConnectionFormView(
+        model: ConnectionFormViewModel(
+            mode: .edit(PreviewData.plain), store: InMemoryConnectionStore(), secrets: InMemorySecretStore(), existingNames: [],
+            tester: ClientConnectionTester(factory: { _ in FakeKafkaClient(latency: .seconds(1)) })),
+        onSaved: { _ in })
+}
+
 #Preview("Form – edit Production") {
     ConnectionFormView(
         model: ConnectionFormViewModel(mode: .edit(PreviewData.production), store: InMemoryConnectionStore(), secrets: InMemorySecretStore(), existingNames: ["Production EU"]),

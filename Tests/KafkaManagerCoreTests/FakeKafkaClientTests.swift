@@ -293,3 +293,10 @@ private func collect(_ stream: AsyncThrowingStream<KafkaMessage, Error>) async t
     }
     #expect(successes == 1)
 }
+
+@Test func describeClusterReportsBrokerCountAndNeedsAConnection() async throws {
+    let fake = FakeKafkaClient(brokerCount: 5)
+    await #expect(throws: KafkaError.self) { try await fake.describeCluster() }
+    try await fake.connect(ClusterConnection(name: "c", bootstrapServers: "h:9092"), credentials: nil)
+    #expect(try await fake.describeCluster() == ClusterInfo(brokerCount: 5))
+}

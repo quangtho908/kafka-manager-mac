@@ -15,14 +15,21 @@ public final class ConnectionsViewModel {
     @ObservationIgnored private let store: any ConnectionStore
     @ObservationIgnored private let secrets: any SecretStore
     @ObservationIgnored private var checkedRecovery = false
+    @ObservationIgnored private let tester: (any ConnectionTester)?
     @ObservationIgnored private weak var observer: (any ConnectionLifecycleObserver)?
     @ObservationIgnored private var pendingSync: Task<Void, Never>?
 
     /// - Parameter observer: told after a profile is saved or deleted (held weakly), e.g. the session registry.
-    public init(store: any ConnectionStore, secrets: any SecretStore, observer: (any ConnectionLifecycleObserver)? = nil) {
+    public init(
+        store: any ConnectionStore,
+        secrets: any SecretStore,
+        observer: (any ConnectionLifecycleObserver)? = nil,
+        tester: (any ConnectionTester)? = nil
+    ) {
         self.store = store
         self.secrets = secrets
         self.observer = observer
+        self.tester = tester
     }
 
     /// Loads when idle, or when `refresh` is true (retry after a failure, manual reload). Ignored while loading.
@@ -92,7 +99,7 @@ public final class ConnectionsViewModel {
     public func makeFormViewModel(mode: ConnectionFormViewModel.Mode) -> ConnectionFormViewModel {
         let edited: UUID?
         if case .edit(let connection) = mode { edited = connection.id } else { edited = nil }
-        return ConnectionFormViewModel(mode: mode, store: store, secrets: secrets, existingNames: existingNames(excluding: edited))
+        return ConnectionFormViewModel(mode: mode, store: store, secrets: secrets, existingNames: existingNames(excluding: edited), tester: tester)
     }
 
     public func duplicateDraft(of connection: ClusterConnection) -> ConnectionFormViewModel.Mode {

@@ -3,7 +3,7 @@ import Foundation
 /// In-memory `KafkaClient` for tests and previews, with failure and latency injection.
 public actor FakeKafkaClient: KafkaClient {
     public enum Method: Hashable, Sendable {
-        case connect, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup
+        case connect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup
     }
 
     /// A topic with its partition layout, config and stored messages.
@@ -25,6 +25,7 @@ public actor FakeKafkaClient: KafkaClient {
     private var groups: [String: GroupDetail]
     private let expectedCredentials: Credentials?
     private var latency: Duration
+    private let brokerCount: Int
     private var host: String
     private var isConnected = false
     private var nextFailure: KafkaError?
@@ -39,7 +40,8 @@ public actor FakeKafkaClient: KafkaClient {
         groups: [GroupDetail] = [],
         host: String = FakeKafkaClient.defaultHost,
         expectedCredentials: Credentials? = nil,
-        latency: Duration = .zero
+        latency: Duration = .zero,
+        brokerCount: Int = 3
     ) {
         self.topics = Dictionary(topics.map { ($0.detail.name, $0.detail) }) { _, last in last }
         self.messages = Dictionary(topics.map { ($0.detail.name, Self.groupByPartition($0.messages)) }) { _, last in last }
@@ -47,6 +49,7 @@ public actor FakeKafkaClient: KafkaClient {
         self.host = host
         self.expectedCredentials = expectedCredentials
         self.latency = latency
+        self.brokerCount = brokerCount
     }
 
     // MARK: Injection
@@ -78,6 +81,11 @@ public actor FakeKafkaClient: KafkaClient {
 
     public func disconnect() async {
         isConnected = false
+    }
+
+    public func describeCluster() async throws -> ClusterInfo {
+        try await begin(.describeCluster)
+        return ClusterInfo(brokerCount: brokerCount)
     }
 
     // MARK: Topics
