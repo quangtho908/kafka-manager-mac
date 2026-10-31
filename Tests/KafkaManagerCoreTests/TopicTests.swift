@@ -26,3 +26,16 @@ private func partition(replicas: [Int], isr: [Int], start: Int64 = 0, end: Int64
 @Test func newTopicDefaultsToEmptyConfig() {
     #expect(NewTopic(name: "t", partitions: 3, replicationFactor: 1).config.isEmpty)
 }
+
+@Suite("TopicSummary.isInternal")
+struct TopicInternalTests {
+    @Test(arguments: ["__consumer_offsets", "__transaction_state", "_schemas", "_confluent-metrics", "_x"])
+    func underscorePrefixIsInternal(name: String) {
+        #expect(TopicSummary(name: name, partitionCount: 1, replicationFactor: 1).isInternal)
+    }
+
+    @Test(arguments: ["orders", "payments.v1", "my_topic", "a__b", "", "-x", "Orders"])
+    func otherNamesAreNot(name: String) {
+        #expect(!TopicSummary(name: name, partitionCount: 1, replicationFactor: 1).isInternal)
+    }
+}

@@ -11,6 +11,13 @@ public struct TopicSummary: Identifiable, Hashable, Sendable {
         self.partitionCount = partitionCount
         self.replicationFactor = replicationFactor
     }
+
+    /// Internal topics (`__consumer_offsets`, `__transaction_state`, `_schemas`, `_confluent-*`) are the ones whose
+    /// name starts with an underscore. A user topic that starts with "_" is hidden by this rule too; "Show internal"
+    /// brings it back.
+    public var isInternal: Bool { Self.isInternalName(name) }
+
+    public static func isInternalName(_ name: String) -> Bool { name.hasPrefix("_") }
 }
 
 public struct TopicDetail: Identifiable, Hashable, Sendable {
