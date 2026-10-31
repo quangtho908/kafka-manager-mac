@@ -9,6 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let selfTest = SelfTest.requested {
+            // A packaged-build check, not a session: run it, report, and leave without showing anything.
+            NSApp.windows.forEach { $0.close() }
+            Task { exit(await SelfTest.run(selfTest)) }
+            return
+        }
         // The plain `activate()` (macOS 14) only yields focus when the frontmost app cooperates, so a launch from a
         // terminal or browser stays behind it; this form brings the window up. Still available on macOS 14.
         NSApp.activate(ignoringOtherApps: true)

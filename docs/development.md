@@ -31,6 +31,19 @@ vendor/                     librdkafka + OpenSSL tĩnh (git-ignored, do scripts/
 - Nhóm (chỉ đọc): `listGroups` = một `rd_kafka_list_groups` (có member count, lọc `protocol_type` ∈ {consumer, rỗng}); `describeGroup` = DescribeConsumerGroups + ListConsumerGroupOffsets + 2 ListOffsets gộp (earliest/latest cho mọi partition một lần; `describeTopic` cũng dùng ListOffsets gộp). Group broker báo `Dead` không member → `clusterError(code: 69)` (`isUnknownGroup`). Các call admin chạy tuần tự trên executor của actor nên gọi song song an toàn. Itest chỉ join/commit/xoá group `km-itest-g-*` của chính nó.
 - Mọi lời gọi C chặn đều chạy trên queue riêng của `LiveKafkaClient`, có timeout (mặc định 10 s); mỗi đối tượng C có wrapper RAII và được đếm trong `ResourceCounters` (test phát hiện rò rỉ).
 
+## Đóng gói (T63a)
+
+- `scripts/package.sh` build release và lắp `dist/KafkaManager.app` (git-ignored): `Contents/MacOS/KafkaManager`, `Info.plist`, `AppIcon.icns`, `PkgInfo`; ký **ad-hoc** (`codesign -s -`) với hardened runtime + `scripts/KafkaManager.entitlements`. Cần `vendor/` (`scripts/dev.sh deps`). Phiên bản lấy từ file `VERSION`, build = số commit của nhánh hiện tại. Biến môi trường: `BUNDLE_ID` (mặc định `dev.kafkamanager.app` — **chỉ là placeholder**, đặt reverse-DNS id thật trước khi notarize), `ICON_PNG` (PNG 1024×1024; mặc định là icon **placeholder** vẽ bởi `tools/make-icon.swift`, thay bằng thiết kế thật trước khi phát hành), `ARCHS`.
+- Chữ ký ad-hoc **không** qua được Gatekeeper trên máy khác (`spctl` báo rejected là bình thường). Mở bản ad-hoc/chưa notarize: chuột phải vào app → Open (lần đầu), hoặc `xattr -dr com.apple.quarantine dist/KafkaManager.app` nếu file đã tải về. Bản build local không có cờ quarantine nên mở thẳng được.
+- Entitlements: **hardened runtime, không App Sandbox, không ngoại lệ nào.** Phân phối bằng Developer ID (không lên Mac App Store); sandbox sẽ đòi entitlement file/keychain-group và làm hỏng hành vi login keychain đã kiểm ở T11. librdkafka + OpenSSL link tĩnh (không dlopen/JIT), client mạng ngoài sandbox không cần entitlement. Thêm khoá vào file entitlements chỉ khi có lý do, ghi ngay cạnh khoá đó.
+- Tự kiểm bản đã đóng gói (không mở UI, in PASS/FAIL, exit 0/1): `KAFKAMANAGER_SELFTEST=keychain dist/KafkaManager.app/Contents/MacOS/KafkaManager` (lưu/đọc/thay/xoá một item với service tạm `km-selftest-<uuid>`, không đụng item nào khác) và `KAFKAMANAGER_SELFTEST=kafka` (connect `localhost:9092` hoặc `KAFKAMANAGER_SELFTEST_BOOTSTRAP`, chỉ đọc metadata).
+- Ký thật + notarize (do **chủ app** chạy, cần tài khoản Apple Developer; script không đọc/lưu credential):
+  1. Một lần: tạo profile notary trong Keychain: `xcrun notarytool store-credentials km-notary --apple-id <email> --team-id <TEAMID>` (hỏi app-specific password; tạo ở appleid.apple.com), hoặc dùng API key (`--key`, `--key-id`, `--issuer`).
+  2. `BUNDLE_ID=com.ban.kafkamanager scripts/package.sh` (build với id thật).
+  3. `DEVELOPER_ID_APPLICATION="Developer ID Application: Tên Bạn (TEAMID)" NOTARY_PROFILE=km-notary BUNDLE_ID=com.ban.kafkamanager scripts/sign-and-notarize.sh` (thêm `MAKE_DMG=1` để tạo dmg; `DRY_RUN=1` chỉ in các lệnh). Script từ chối chạy thiếu biến, hoặc khi `BUNDLE_ID` còn là placeholder / khác id trong app. Các bước: codesign (hardened runtime + timestamp + entitlements) → verify → `ditto` zip → `notarytool submit --wait` → `stapler staple` → `spctl`.
+  4. Nếu Apple từ chối: `xcrun notarytool log <submission-id> --keychain-profile km-notary`.
+  Lưu ý: dmg do script tạo được ký nhưng không notarize riêng (app bên trong đã có ticket đính kèm).
+
 ## Quy ước
 
 - Swift 6 strict concurrency: model là `Sendable`; mọi I/O Kafka đi qua actor, không chạy trên main actor.

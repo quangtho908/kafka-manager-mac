@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened runtime, no App Sandbox, and deliberately NO exceptions: the app is distributed with Developer ID, not
+     through the Mac App Store. librdkafka and OpenSSL are linked statically (no dlopen, no JIT, no unsigned libraries),
+     the network client needs no entitlement outside a sandbox, and the Keychain items live in the legacy login
+     keychain. See docs/development.md ("Đóng gói"). Add keys here only with a reason written next to them. -->
+<plist version="1.0">
+<dict/>
+</plist>
