@@ -63,10 +63,10 @@ groups named `km-itest-g-*`, and refuse to produce to any other topic.
 ARCHS=arm64 scripts/package.sh   # builds dist/KafkaManager.app, ad-hoc signed with the hardened runtime
 ```
 
-`ARCHS="arm64 x86_64"` makes a universal binary (needs `vendor/` built for both). Optional `BUNDLE_ID` and `ICON_PNG`
-override the bundle identifier and the 1024 px icon. The version comes from `VERSION`. An ad-hoc signature is rejected by
+`ARCHS="arm64 x86_64"` makes a universal binary (needs `vendor/` built for both). Optional `BUNDLE_ID` (default
+`com.thtsolution.kafkamanager`) and `ICON_PNG` override the bundle identifier and the 1024 px icon. The version comes from `VERSION`. An ad-hoc signature is rejected by
 Gatekeeper on other Macs. `scripts/sign-and-notarize.sh` does the Developer ID signing and notarization; it needs the
-owner's Apple account (`DEVELOPER_ID_APPLICATION`, `NOTARY_PROFILE`, `BUNDLE_ID`) and is never run by the development
+owner's Apple account (`DEVELOPER_ID_APPLICATION`, `NOTARY_PROFILE`) and is never run by the development
 tooling. `DRY_RUN=1` prints its commands without running them.
 
 ## Security

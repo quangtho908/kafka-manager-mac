@@ -2,8 +2,7 @@
 # Builds the release binary and assembles dist/KafkaManager.app, ad-hoc signed with the hardened runtime.
 #   scripts/package.sh
 # Environment (all optional):
-#   BUNDLE_ID   CFBundleIdentifier. Default dev.kafkamanager.app is a PLACEHOLDER: set your own reverse-DNS id
-#               before notarizing (scripts/sign-and-notarize.sh requires it).
+#   BUNDLE_ID   CFBundleIdentifier. Default com.thtsolution.kafkamanager (the registered App ID).
 #   ICON_PNG    1024x1024 PNG for the app icon. Default: resources/AppIcon-1024.png.
 #   ARCHS       "arm64" (default) or "arm64 x86_64" for a universal binary (needs vendor built for both: scripts/build-deps.sh).
 # The version comes from the VERSION file; the build number is the number of commits on the current branch.
@@ -11,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BUNDLE_ID="${BUNDLE_ID:-dev.kafkamanager.app}"
+BUNDLE_ID="${BUNDLE_ID:-com.thtsolution.kafkamanager}"
 ARCHS="${ARCHS:-arm64}"
 VERSION="$(tr -d '[:space:]' < VERSION)"
 BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 1)"

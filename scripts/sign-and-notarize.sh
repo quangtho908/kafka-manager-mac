@@ -2,15 +2,16 @@
 # Signs dist/KafkaManager.app with a Developer ID, notarizes it with Apple and staples the ticket. FOR THE APP'S OWNER:
 # it uses your Apple account, so it is never run by the development tooling.
 #
-#   BUNDLE_ID=com.example.kafkamanager scripts/package.sh        # build the app with YOUR bundle id first
+#   scripts/package.sh                                           # builds the app with the default bundle id
 #   DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \
-#   NOTARY_PROFILE=km-notary BUNDLE_ID=com.example.kafkamanager \
+#   NOTARY_PROFILE=km-notary \
 #   scripts/sign-and-notarize.sh
 #
 # Required environment:
 #   DEVELOPER_ID_APPLICATION  signing identity name (see `security find-identity -v -p codesigning`)
 #   NOTARY_PROFILE            a notarytool keychain profile made once with `xcrun notarytool store-credentials`
-#   BUNDLE_ID                 your reverse-DNS id; must equal the one package.sh put in the app (and not the placeholder)
+# Optional (has a default):
+#   BUNDLE_ID                 default com.thtsolution.kafkamanager; must equal the one package.sh put in the app
 # Optional:
 #   DRY_RUN=1   print every command without running it (missing variables are shown as <NAME>)
 #   MAKE_DMG=1  also build dist/KafkaManager-<version>.dmg after stapling
@@ -19,7 +20,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DRY_RUN="${DRY_RUN:-}"
-PLACEHOLDER_ID="dev.kafkamanager.app"
+BUNDLE_ID="${BUNDLE_ID:-com.thtsolution.kafkamanager}"
+PLACEHOLDER_ID="dev.kafkamanager.app" # the old default; refused so it is never signed
 APP="dist/KafkaManager.app"
 ENTITLEMENTS="scripts/KafkaManager.entitlements"
 VERSION="$(tr -d '[:space:]' < VERSION)"
@@ -27,7 +29,7 @@ ZIP="dist/KafkaManager-$VERSION-notarize.zip"
 DMG="dist/KafkaManager-$VERSION.dmg"
 
 missing=()
-for name in DEVELOPER_ID_APPLICATION NOTARY_PROFILE BUNDLE_ID; do
+for name in DEVELOPER_ID_APPLICATION NOTARY_PROFILE; do
   [[ -n "${!name:-}" ]] || missing+=("$name")
 done
 if ((${#missing[@]})); then
