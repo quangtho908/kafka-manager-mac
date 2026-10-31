@@ -3,20 +3,20 @@ import Foundation
 extension FakeKafkaClient {
     private static let sampleEpoch = Date(timeIntervalSince1970: 1_700_000_000)
     private static let samplePartitions = 3
-    private static let sampleMessagesPerPartition = 30
+    public static let sampleMessagesPerPartition = 30
 
     /// Deterministic dataset for previews and perf checks. The first two topics (`orders`, `payments`)
     /// carry messages and consumer groups: one partition with no commit, one committed past the log end.
-    public static func sampleData(topicCount: Int = 5000) -> FakeKafkaClient {
+    public static func sampleData(topicCount: Int = 5000, messagesPerPartition: Int = sampleMessagesPerPartition) -> FakeKafkaClient {
         var seeds: [SeedTopic] = (0..<topicCount).map { index in
             switch index {
-            case 0: sampleTopic(name: "orders", messagesPerPartition: sampleMessagesPerPartition)
-            case 1: sampleTopic(name: "payments", messagesPerPartition: sampleMessagesPerPartition)
+            case 0: sampleTopic(name: "orders", messagesPerPartition: messagesPerPartition)
+            case 1: sampleTopic(name: "payments", messagesPerPartition: messagesPerPartition)
             default: sampleTopic(name: String(format: "topic-%05d", index), messagesPerPartition: 0, variant: index)
             }
         }
         seeds.sort { $0.detail.name < $1.detail.name }
-        return FakeKafkaClient(topics: seeds, groups: topicCount >= 2 ? sampleGroups() : [])
+        return FakeKafkaClient(topics: seeds, groups: topicCount >= 2 ? sampleGroups(end: Int64(messagesPerPartition)) : [])
     }
 
     /// `variant` makes some generated topics unhealthy or customised, deterministically: every 7th has an
@@ -45,8 +45,8 @@ extension FakeKafkaClient {
                     partition: partition,
                     offset: Int64(offset),
                     timestamp: sampleEpoch.addingTimeInterval(Double(offset * samplePartitions + partition)),
-                    key: Data("\(name)-\(partition)-\(offset)".utf8),
-                    value: Data(#"{"topic":"\#(name)","partition":\#(partition),"offset":\#(offset)}"#.utf8)
+                    key: offset % 17 == 0 && offset > 0 ? nil : Data("\(name)-\(partition)-\(offset)".utf8),
+                    value: sampleValue(topic: name, partition: partition, offset: offset)
                 )
             }
         }
@@ -56,8 +56,23 @@ extension FakeKafkaClient {
         )
     }
 
-    private static func sampleGroups() -> [GroupDetail] {
-        let end = Int64(sampleMessagesPerPartition)
+    /// A deterministic mix by offset: mostly JSON objects, then an array, plain text, binary, a tombstone and nested
+    /// JSON. In `orders` partition 0, every 499th message carries a ~200 KB value.
+    private static func sampleValue(topic: String, partition: Int, offset: Int) -> Data? {
+        if topic == "orders", partition == 0, offset % 499 == 498 {
+            return Data(#"{"blob":""#.utf8) + Data(repeating: UInt8(ascii: "x"), count: 200_000) + Data(#""}"#.utf8)
+        }
+        switch offset % 10 {
+        case 5: return Data(#"[\#(offset),\#(partition),"\#(topic)"]"#.utf8)
+        case 6: return Data("Plain text event \(offset) for \(topic)\nsecond line".utf8)
+        case 7: return Data([0xFF, 0x00, 0x10, UInt8(truncatingIfNeeded: offset), 0x80, 0xC0])
+        case 8: return nil
+        case 9: return Data(#"{"topic":"\#(topic)","detail":{"partition":\#(partition),"tags":["a","b"],"offset":\#(offset)}}"#.utf8)
+        default: return Data(#"{"topic":"\#(topic)","partition":\#(partition),"offset":\#(offset)}"#.utf8)
+        }
+    }
+
+    private static func sampleGroups(end: Int64) -> [GroupDetail] {
         let member = GroupMemberInfo(id: "member-1", clientId: "sample-client", host: "/127.0.0.1", assignments: ["orders": [0, 1, 2]])
         return [
             GroupDetail(id: "orders-service", state: "Stable", members: [member], lags: [

@@ -9,6 +9,31 @@ import Foundation
 ///   up to `asyncJSONLimit`.
 /// - No copy of the payload is made: validation and formatting read the `Data` in place, and only the bounded display
 ///   text is built.
+/// A one-line summary of a payload for a table cell.
+public struct PayloadPreview: Sendable, Hashable {
+    /// The shown text: never longer than the preview limit, without the size suffix.
+    public let text: String
+    /// Size of the whole payload; 0 for null and empty.
+    public let byteCount: Int
+    public let isTruncated: Bool
+    /// Binary payloads always carry their size, since the hex run alone says nothing about it.
+    public let showsSize: Bool
+
+    public init(text: String, byteCount: Int, isTruncated: Bool, showsSize: Bool = false) {
+        self.text = text
+        self.byteCount = byteCount
+        self.isTruncated = isTruncated
+        self.showsSize = showsSize
+    }
+
+    /// `text`, plus "…" and the full size when the payload was cut (or is binary).
+    public var display: String {
+        let size = String(localized: "(\(byteCount) bytes)")
+        if isTruncated { return "\(text)… \(size)" }
+        return showsSize ? "\(text) \(size)" : text
+    }
+}
+
 public enum PayloadDecoder {
     public static let displayLimit = 64 * 1024
     public static let previewLimit = 10 * 1024
@@ -63,8 +88,15 @@ public enum PayloadDecoder {
     /// One line for a table cell: control characters become spaces, long payloads are cut on a character boundary and
     /// end with "…" and the full size. No JSON parsing. Bytes that are not UTF-8 text show as a short hex run.
     public static func preview(_ data: Data?, maxBytes: Int = previewLimit, role: PayloadRole = .value) -> String {
-        guard let data else { return role == .value ? String(localized: "null (tombstone)") : String(localized: "null") }
-        guard !data.isEmpty else { return String(localized: "(empty)") }
+        previewParts(data, maxBytes: maxBytes, role: role).display
+    }
+
+    /// The pieces of a preview, so a caller can search the text without matching the "(N bytes)" suffix.
+    public static func previewParts(_ data: Data?, maxBytes: Int = previewLimit, role: PayloadRole = .value) -> PayloadPreview {
+        guard let data else {
+            return PayloadPreview(text: role == .value ? String(localized: "null (tombstone)") : String(localized: "null"), byteCount: 0, isTruncated: false)
+        }
+        guard !data.isEmpty else { return PayloadPreview(text: String(localized: "(empty)"), byteCount: 0, isTruncated: false) }
         let maxBytes = max(maxBytes, 1)
         return data.withUnsafeBytes { raw in
             let bytes = raw.bindMemory(to: UInt8.self)
@@ -72,15 +104,11 @@ public enum PayloadDecoder {
             let body = UnsafeBufferPointer(rebasing: bytes[start...])
             let cut = UTF8Validation.boundary(in: body, atMost: maxBytes)
             let shown = UnsafeBufferPointer(rebasing: body[..<cut])
-            let truncated = cut < body.count
-            let sizeNote = String(localized: "(\(data.count) bytes)")
             if cut > 0, UTF8Validation.isValid(shown), !containsBinaryControl(shown) {
-                let line = singleLine(String(decoding: shown, as: UTF8.self))
-                return truncated ? "\(line)… \(sizeNote)" : line
+                return PayloadPreview(text: singleLine(String(decoding: shown, as: UTF8.self)), byteCount: data.count, isTruncated: cut < body.count)
             }
             let hexCount = min(previewHexBytes, body.count)
-            let hex = HexDump.inline(body, count: hexCount)
-            return body.count > hexCount ? "\(hex)… \(sizeNote)" : "\(hex) \(sizeNote)"
+            return PayloadPreview(text: HexDump.inline(body, count: hexCount), byteCount: data.count, isTruncated: body.count > hexCount, showsSize: true)
         }
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// In-memory `KafkaClient` for tests and previews, with failure and latency injection.
 public actor FakeKafkaClient: KafkaClient {
@@ -28,6 +29,7 @@ public actor FakeKafkaClient: KafkaClient {
     private let brokerCount: Int
     private var host: String
     private var isConnected = false
+    private nonisolated let openStreams = OSAllocatedUnfairLock(initialState: 0)
     private var nextFailure: KafkaError?
     private var persistentFailures: [Method: KafkaError] = [:]
 
@@ -63,6 +65,10 @@ public actor FakeKafkaClient: KafkaClient {
     public func failing(_ method: Method, with error: KafkaError?) {
         persistentFailures[method] = error
     }
+
+    /// Number of `fetchMessages` streams that have started and not yet ended (finished, failed or terminated by the
+    /// consumer). Lets tests check that stopping really stops the producer.
+    public nonisolated var openFetchStreams: Int { openStreams.withLock { $0 } }
 
     public func setLatency(_ latency: Duration) {
         self.latency = latency
@@ -136,7 +142,9 @@ public actor FakeKafkaClient: KafkaClient {
     /// (by timestamp) among the selected partitions, capped by `limit`.
     public nonisolated func fetchMessages(_ query: MessageQuery) -> AsyncThrowingStream<KafkaMessage, Error> {
         AsyncThrowingStream { continuation in
+            openStreams.withLock { $0 += 1 }
             let task = Task {
+                defer { self.openStreams.withLock { $0 -= 1 } }
                 do {
                     let (result, delay) = try await self.select(query)
                     for message in result {
