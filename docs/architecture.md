@@ -40,7 +40,8 @@ Mục tiêu: app macOS native quản lý Kafka (cluster, topic, message, consume
 |---|---|---|
 | `KafkaManagerCore` | — | Model, protocol, `Fake`, `Guarded`, store, `KafkaError` |
 | `KafkaManagerKafka` *(thêm sau khi chốt client)* | Core, thư viện Kafka | `LiveKafkaClient` |
-| `KafkaManagerApp` | Core (+ Kafka ở composition root) | View, view model, entry point |
+| `KafkaManagerUI` | Core | View model (`@Observable @MainActor`) + SwiftUI view theo tính năng, `LoadState`, thành phần dùng chung. Tách riêng để view model test được (target `@main` thì không) |
+| `KafkaManagerApp` | UI, Core (+ Kafka ở composition root) | Chỉ `@main`, `AppEnvironment` (composition root), assets |
 
 Tách `KafkaManagerKafka` để thư viện C/ngoài chỉ nằm một chỗ: đổi client chỉ sửa target này; Core và test không bị kéo theo thời gian build/link của C.
 
@@ -51,10 +52,11 @@ Sources/KafkaManagerCore/
   Models/        ClusterConnection, Topic*, KafkaMessage, Group*, ...
   Client/        KafkaClient, KafkaError, GuardedKafkaClient, FakeKafkaClient
   Storage/       ConnectionStore, SecretStore (Keychain + in-memory)
-Sources/KafkaManagerApp/
-  App/           KafkaManagerApp, AppEnvironment (composition root)
+Sources/KafkaManagerUI/
   Features/      Connections/ Topics/ Messages/ Groups/  (View + ViewModel mỗi nhóm)
-  Shared/        StateView, ErrorBanner, extension
+  Shared/        LoadState, StateView, ErrorBanner, extension
+Sources/KafkaManagerApp/
+  App/           KafkaManagerApp (@main), AppEnvironment (composition root)
 ```
 
 ## 4. Luồng dữ liệu
