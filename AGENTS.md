@@ -5,8 +5,9 @@ Native macOS Kafka manager (Swift 6 / SwiftUI, SwiftPM). Every entry answers: "W
 ## Layout
 
 - `Sources/KafkaManagerCore/` — UI-free domain models + Kafka client layer. Never import SwiftUI/AppKit here.
-- `Sources/KafkaManagerApp/` — SwiftUI `@main` app; depends on Core only.
-- `Tests/KafkaManagerCoreTests/` — Swift Testing (`import Testing`), not XCTest.
+- `Sources/KafkaManagerUI/` — `@Observable` view models and shared UI state (`LoadState`); depends on Core.
+- `Sources/KafkaManagerApp/` — SwiftUI `@main` app; depends on UI and Core.
+- `Tests/KafkaManagerCoreTests/`, `Tests/KafkaManagerUITests/` — Swift Testing (`import Testing`), not XCTest.
 - `docs/` — `product.md` (tính năng/MVP), `architecture.md` (tầng + quyết định mở), `development.md` (setup/quy ước).
 
 ## Review standard (mandatory)

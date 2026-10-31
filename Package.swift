@@ -11,7 +11,10 @@ let package = Package(
     targets: [
         // UI-free domain + Kafka client layer. No SwiftUI/AppKit here.
         .target(name: "KafkaManagerCore"),
-        .executableTarget(name: "KafkaManagerApp", dependencies: ["KafkaManagerCore"]),
+        // View models and shared UI state (Observation + Foundation only; SwiftUI views arrive with T13b).
+        .target(name: "KafkaManagerUI", dependencies: ["KafkaManagerCore"]),
+        .executableTarget(name: "KafkaManagerApp", dependencies: ["KafkaManagerUI", "KafkaManagerCore"]),
         .testTarget(name: "KafkaManagerCoreTests", dependencies: ["KafkaManagerCore"]),
+        .testTarget(name: "KafkaManagerUITests", dependencies: ["KafkaManagerUI", "KafkaManagerCore"]),
     ]
 )
