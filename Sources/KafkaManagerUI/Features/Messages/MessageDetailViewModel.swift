@@ -17,14 +17,6 @@ public struct PayloadView: Sendable, Equatable {
     public var isDecoding = false
     var lines: [DisplayLine] = []
     var wasSplit = false
-
-    /// "Showing first 64 KB of 200 KB", or nil when everything is shown.
-    public var truncationNote: String? {
-        guard let payload, payload.isTruncated else { return nil }
-        let shown = ByteCountFormatStyle(style: .file).format(Int64(PayloadDecoder.displayLimit))
-        let total = ByteCountFormatStyle(style: .file).format(Int64(payload.byteCount))
-        return String(localized: "Showing first \(shown) of \(total)")
-    }
 }
 
 public struct MetadataRow: Identifiable, Sendable, Equatable {

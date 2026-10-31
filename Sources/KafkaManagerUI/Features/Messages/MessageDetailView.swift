@@ -148,7 +148,6 @@ private struct PayloadSection: View {
 
     private var notes: [String] {
         var result = view.payload?.notes ?? []
-        if let truncated = view.truncationNote { result.append(truncated) }
         if view.wasSplit {
             result.append(String(localized: "Lines longer than \(DisplayLines.maxLineLength) characters continue on the next row."))
         }

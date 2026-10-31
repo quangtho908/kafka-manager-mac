@@ -165,7 +165,7 @@ struct MessageDetailViewModelTests {
         let m = model(msg(value: big))
         await m.load(.value)
         #expect(m.value.payload?.isTruncated == true)
-        #expect(m.value.truncationNote?.contains("Showing first") == true)
+        #expect(m.value.payload?.notes.contains { $0.hasPrefix("Showing the first") } == true)
         #expect(m.value.payload?.byteCount == 200_000)
         #expect(m.value.lines.count == 66)
         #expect(m.value.wasSplit)
