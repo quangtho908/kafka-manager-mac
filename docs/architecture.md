@@ -9,6 +9,7 @@ Mục tiêu: app macOS native quản lý Kafka (cluster, topic, message, consume
 3. **I/O ngoài main actor.** Mọi truy cập client đi qua `actor`; model trả về là `Sendable`.
 4. **An toàn ở tầng thấp.** Chặn thao tác ghi trên cluster read-only ở Core, không chỉ ẩn nút.
 5. **Secret không rời Keychain.**
+6. **Nhẹ và lười.** Mở app không kết nối, không tải; RAM/CPU/khởi động theo [performance-budget.md](performance-budget.md).
 
 ## 2. Các tầng
 

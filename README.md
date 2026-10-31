@@ -25,5 +25,6 @@ scripts/dev.sh run     # mở app
 | [docs/features/](docs/features/README.md) | Spec chi tiết từng tính năng MVP |
 | [docs/architecture.md](docs/architecture.md) | Các tầng, quyết định kiến trúc còn mở |
 | [docs/development.md](docs/development.md) | Setup, cấu trúc code, quy ước, test, Kafka local |
+| [docs/performance-budget.md](docs/performance-budget.md) | Ngân sách khởi động / RAM / CPU |
 | [docs/review-standard.md](docs/review-standard.md) | Tiêu chuẩn review bắt buộc cho mọi task |
 | [AGENTS.md](AGENTS.md) | Bản đồ repo cho coding agent |

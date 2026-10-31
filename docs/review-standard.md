@@ -60,7 +60,11 @@ Cổng đỏ → không được chuyển `review`.
 - [ ] Thao tác phá huỷ có xác nhận gõ lại tên; production read-only ở cả UI và Core.
 - [ ] Không thêm dependency mới khi chưa được BA duyệt.
 
-### F. Hiệu năng
+### F. Hiệu năng (ngân sách: `docs/performance-budget.md`)
+- [ ] Không làm việc nặng lúc khởi động (kết nối, Keychain, tải dữ liệu); mọi thứ lười.
+- [ ] Không timer/poll nền khi idle; kết nối và consumer được đóng khi không dùng.
+- [ ] Task/stream được dọn, không giữ tham chiếu vòng; dữ liệu có trần (limit, cắt value).
+- [ ] Task ảnh hưởng RAM/CPU/khởi động đính kèm số đo P1–P6 liên quan hoặc ghi "không ảnh hưởng". Vượt ngân sách = MAJOR.
 - [ ] Danh sách lớn dùng `List`/`Table` ảo hoá, không `VStack` + `ForEach` toàn bộ.
 - [ ] Stream message có giới hạn buffer và cập nhật UI theo batch.
 - [ ] Không tính toán nặng / decode / pretty print đồng bộ trong `body` hoặc trên main thread.

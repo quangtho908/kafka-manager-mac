@@ -7,7 +7,7 @@ Không làm hỏng cluster production vì lỡ tay; app có khung điều hướ
 ## An toàn
 
 - `Environment` của cluster quyết định chế độ: **Production mặc định read-only**; Local/Staging ghi được. Người dùng đổi được trong profile.
-- Read-only: các nút tạo/xoá bị vô hiệu và có tooltip lý do; `KafkaClient` wrapper (`GuardedKafkaClient`) từ chối thao tác ghi ở tầng Core để UI lỗi cũng không lọt.
+- Read-only: các thao tác ghi bị `GuardedKafkaClient` từ chối bằng `KafkaError.readOnly(clusterName:)` (đã có, T03); các nút tạo/xoá bị vô hiệu và có tooltip lý do; `KafkaClient` wrapper (`GuardedKafkaClient`) từ chối thao tác ghi ở tầng Core để UI lỗi cũng không lọt.
 - **Thao tác phá huỷ** (xoá topic, về sau reset offset/xoá group): hộp thoại nêu rõ cluster + tên đối tượng, bắt gõ lại tên, nút hành động màu đỏ. Cluster production hiện banner đỏ trong hộp thoại.
 - Banner màu cố định trên cửa sổ theo environment (xanh Local, vàng Staging, đỏ Production) để luôn biết đang ở cluster nào.
 
