@@ -10,7 +10,12 @@ public final class TopicDetailViewModel {
     /// True while a reload runs over data that is already showing.
     public private(set) var isRefreshing = false
 
+    public enum Tab: Hashable, Sendable { case partitions, config, messages }
+
+    public var tab = Tab.partitions
+
     @ObservationIgnored private let session: ClusterSession
+    @ObservationIgnored private var messagesModel: MessagesViewModel?
     /// Called once when the broker says the topic no longer exists, so the list can refresh and drop it.
     @ObservationIgnored private let onTopicGone: @MainActor (String) async -> Void
     @ObservationIgnored private var loadID = 0
@@ -20,6 +25,19 @@ public final class TopicDetailViewModel {
         self.topicName = topicName
         self.onTopicGone = onTopicGone
     }
+
+    /// Created on first use so a topic nobody reads messages from costs nothing.
+    public var messages: MessagesViewModel {
+        if let messagesModel { return messagesModel }
+        let created = MessagesViewModel(session: session, topicName: topicName, partitionInfo: { [weak self] in
+            self?.state.value?.partitions ?? []
+        })
+        messagesModel = created
+        return created
+    }
+
+    /// Ends a running message fetch, if any.
+    public func stopMessages() { messagesModel?.stop() }
 
     public func loadIfNeeded() async {
         if state.value == nil { await perform() }

@@ -64,7 +64,7 @@ public struct TopicListView: View {
             if refreshCount == 0 { await model.loadIfNeeded() } else { await model.refresh() }
         }
         .onChange(of: refreshToken) { refreshCount += 1 }
-        .focusedSceneValue(\.findAction, focusSearch)
+        .focusedSceneValue(\.findAction, findAction)
         .sheet(isPresented: $showingCreate) { CreateTopicSheet(model: model.makeCreateForm()) }
         .sheet(item: $model.pendingDelete) { confirmation in
             DestructiveConfirmationSheet(confirmation: confirmation, gate: model.writeGate) { model.confirmPendingDelete() }
@@ -72,6 +72,12 @@ public struct TopicListView: View {
     }
 
     private func focusSearch() { searchFocused = true }
+
+    /// The Messages tab registers its own filter field while it is open.
+    private var findAction: (() -> Void)? {
+        if model.isMessagesTabOpen { return nil }
+        return { focusSearch() }
+    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Metrics.spacing) {

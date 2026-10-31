@@ -53,6 +53,8 @@ Skill `swiftui-macos` nhắm macOS 26 / Swift 6.2, nên khi áp dụng skill:
 
 Dữ liệu demo hiện có 200 topic. Để thử hiệu năng với cluster lớn: `KAFKAMANAGER_DEMO_TOPICS=5000 swift run KafkaManager` (1–20000; giá trị khác bị bỏ qua; chỉ dùng khi phát triển).
 
+Số message mỗi partition của dữ liệu demo mặc định là 30. Để thử fetch lớn: `KAFKAMANAGER_DEMO_MESSAGES=3400 swift run KafkaManager` (1–5000; giá trị khác bị bỏ qua; chỉ dùng khi phát triển).
+
 ## Đóng gói
 
 SwiftPM executable không có entitlements/signing. Trước khi phát hành cần Xcode project (hoặc XcodeGen) với App Sandbox, entitlement `com.apple.security.network.client`, Developer ID signing và notarization.

@@ -36,7 +36,7 @@ public final class TopicListViewModel {
     @ObservationIgnored private var loadID = 0
     /// Bumped whenever `state` gets a new list, so cached results know the data changed.
     @ObservationIgnored private var dataRevision = 0
-    @ObservationIgnored private var detail: TopicDetailViewModel?
+    private var detail: TopicDetailViewModel?
     @ObservationIgnored private var deleteTask: Task<Void, Never>?
     @ObservationIgnored private var sortedCache: SortedCache?
     @ObservationIgnored private var visibleCache: VisibleCache?
@@ -140,9 +140,13 @@ public final class TopicListViewModel {
         let created = TopicDetailViewModel(session: session, topicName: topic) { [weak self] name in
             await self?.topicWasRemoved(name)
         }
+        detail?.stopMessages()
         detail = created
         return created
     }
+
+    /// True while the open topic shows its Messages tab, which owns ⌘F then.
+    public var isMessagesTabOpen: Bool { detail?.tab == .messages }
 
     public func dismissRemovedTopicNotice() { removedTopicNotice = nil }
 

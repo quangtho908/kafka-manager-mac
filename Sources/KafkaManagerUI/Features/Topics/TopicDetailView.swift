@@ -14,13 +14,10 @@ private enum Metrics {
 
 /// Header plus Partitions / Config tabs for one topic.
 struct TopicDetailView: View {
-    let model: TopicDetailViewModel
+    @Bindable var model: TopicDetailViewModel
     /// nil hides the delete button; otherwise it is shown, disabled with a reason when writes are not allowed.
     let delete: (gate: WriteGate, isBusy: Bool, action: () -> Void)?
 
-    private enum Tab: Hashable { case partitions, config }
-
-    @State private var tab = Tab.partitions
     @State private var refreshCount = 0
 
 
@@ -44,16 +41,18 @@ struct TopicDetailView: View {
                 isRefreshing: model.isRefreshing
             ) { detail in
                 VStack(spacing: 0) {
-                    Picker("Details", selection: $tab) {
-                        Text("Partitions").tag(Tab.partitions)
-                        Text("Config").tag(Tab.config)
+                    Picker("Details", selection: $model.tab) {
+                        Text("Partitions").tag(TopicDetailViewModel.Tab.partitions)
+                        Text("Config").tag(TopicDetailViewModel.Tab.config)
+                        Text("Messages").tag(TopicDetailViewModel.Tab.messages)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .padding(Metrics.padding)
-                    switch tab {
+                    switch model.tab {
                     case .partitions: PartitionsTable(partitions: detail.partitions)
                     case .config: ConfigTable(entries: detail.configEntries)
+                    case .messages: MessagesView(model: model.messages)
                     }
                 }
             }

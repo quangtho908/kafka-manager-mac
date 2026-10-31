@@ -40,8 +40,19 @@ enum DefaultClientFactory {
         return count
     }()
 
+    private static let maxDemoMessagesPerPartition = 5_000
+
+    /// `KAFKAMANAGER_DEMO_MESSAGES=3400` sets the messages per partition (default 30), for measuring big fetches.
+    static let demoMessagesPerPartition: Int = {
+        let text = ProcessInfo.processInfo.environment["KAFKAMANAGER_DEMO_MESSAGES"] ?? ""
+        guard let count = Int(text), (1...maxDemoMessagesPerPartition).contains(count) else { return FakeKafkaClient.sampleMessagesPerPartition }
+        return count
+    }()
+
     /// Demo data for every profile. Replace with LiveKafkaClient in T60.
-    static let demo: ClientFactory = { _ in FakeKafkaClient.sampleData(topicCount: demoTopicCount) }
+    static let demo: ClientFactory = { _ in
+        FakeKafkaClient.sampleData(topicCount: demoTopicCount, messagesPerPartition: demoMessagesPerPartition)
+    }
 }
 
 extension AppEnvironment {

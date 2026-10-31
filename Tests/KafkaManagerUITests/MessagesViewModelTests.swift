@@ -320,3 +320,30 @@ struct MessagesDerivedListTests {
         #expect(rig.model.visibleRows.map(\.message.offset) == [0, 1, 2, 3, 4])
     }
 }
+
+@Suite("Messages tab wiring") @MainActor
+struct MessagesTabWiringTests {
+    @Test func listKnowsWhenTheMessagesTabIsOpen() {
+        let rig = MessagesRig(messages: [])
+        let list = TopicListViewModel(session: rig.session)
+        let detail = list.detailModel(for: "orders")
+        #expect(!list.isMessagesTabOpen)
+        detail.tab = .messages
+        #expect(list.isMessagesTabOpen)
+        #expect(detail.messages === detail.messages)
+    }
+
+    @Test func replacingTheDetailStopsItsFetch() async {
+        let rig = MessagesRig(messages: (0..<200).map { message(0, Int64($0)) }, latency: .milliseconds(5))
+        let list = TopicListViewModel(session: rig.session)
+        let detail = list.detailModel(for: "orders")
+        detail.messages.startKind = .earliest
+        let model = detail.messages
+        let task = Task { @MainActor in await model.fetch() }
+        await expectSettles { rig.fake.openFetchStreams == 1 }
+        _ = list.detailModel(for: "other")
+        await task.value
+        #expect(model.status == .finished(count: model.rows.count, reason: .stopped))
+        await expectSettles { rig.fake.openFetchStreams == 0 }
+    }
+}
