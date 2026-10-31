@@ -54,9 +54,14 @@ struct MessageDetailView: View {
                 Label(copiedText(copied), systemImage: "checkmark.circle").font(.callout).foregroundStyle(.green)
             }
             Toggle("Wrap lines", isOn: $model.wordWrap).toggleStyle(.checkbox).controlSize(.small)
-            Button("Copy Key") { request(.key) }.disabled(!model.canCopy(.key) || model.isCopying)
-            Button("Copy Value") { request(.value) }.disabled(!model.canCopy(.value) || model.isCopying)
+            Button("Copy Key (as shown)") { request(.key) }
+                .help(Text("Copies the whole key in the format chosen above"))
+                .disabled(!model.canCopy(.key) || model.isCopying)
+            Button("Copy Value (as shown)") { request(.value) }
+                .help(Text("Copies the whole value in the format chosen above"))
+                .disabled(!model.canCopy(.value) || model.isCopying)
             Button("Copy Message") { request(.message) }
+                .help(Text("Copies the message as JSON"))
         }
     }
 

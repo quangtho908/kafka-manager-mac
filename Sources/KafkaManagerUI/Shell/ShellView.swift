@@ -11,6 +11,7 @@ public struct ShellView: View {
     /// ⌘R goes to whatever is on screen: the topic list when Topics is open, otherwise the connection list.
     @State private var connectionRefresh = 0
     @State private var topicRefresh = 0
+    @State private var groupRefresh = 0
 
     private enum Metrics {
         static let sidebarMin: Double = 240
@@ -38,14 +39,18 @@ public struct ShellView: View {
             ConnectionListView(model: shell.connections, formRequest: $formRequest, refreshToken: connectionRefresh)
                 .navigationSplitViewColumnWidth(min: Metrics.sidebarMin, ideal: Metrics.sidebarIdeal, max: Metrics.sidebarMax)
         } content: {
-            ClusterColumn(shell: shell, sessions: sessions, refreshToken: topicRefresh)
+            ClusterColumn(shell: shell, sessions: sessions, topicRefresh: topicRefresh, groupRefresh: groupRefresh)
                 .navigationSplitViewColumnWidth(min: Metrics.contentMin, ideal: Metrics.contentIdeal, max: Metrics.contentMax)
         } detail: {
             DetailColumn(shell: shell)
         }
         .onChange(of: shell.connections.state) { shell.pruneSelection() }
         .onChange(of: refreshToken) {
-            if shell.selectedSection == .topics { topicRefresh += 1 } else { connectionRefresh += 1 }
+            switch shell.selectedSection {
+            case .topics: topicRefresh += 1
+            case .groups: groupRefresh += 1
+            case nil: connectionRefresh += 1
+            }
         }
     }
 }
@@ -103,11 +108,12 @@ private struct DetailPlaceholder: View {
 private struct ClusterColumn: View {
     @Bindable var shell: ShellViewModel
     let sessions: ClusterSessions
-    let refreshToken: Int
+    let topicRefresh: Int
+    let groupRefresh: Int
 
     var body: some View {
         if let connection = shell.selectedConnection {
-            ConnectedColumn(connection: connection, shell: shell, sessions: sessions, refreshToken: refreshToken)
+            ConnectedColumn(connection: connection, shell: shell, sessions: sessions, topicRefresh: topicRefresh, groupRefresh: groupRefresh)
                 .id(connection.id)
         } else {
             ContentUnavailableView("Select a connection", systemImage: "externaldrive")
@@ -135,10 +141,12 @@ private struct ConnectedColumn: View {
     let connection: ClusterConnection
     @Bindable var shell: ShellViewModel
     let sessions: ClusterSessions
-    let refreshToken: Int
+    let topicRefresh: Int
+    let groupRefresh: Int
 
     @State private var session: ClusterSession?
     @State private var topics: TopicListViewModel?
+    @State private var groups: GroupListViewModel?
     @State private var actionRequest: ActionRequest?
     @State private var actionCount = 0
     @State private var readOnlyRequest: ReadOnlyRequest?
@@ -160,6 +168,7 @@ private struct ConnectedColumn: View {
             let resolved = await sessions.session(for: connection)
             session = resolved
             topics = shell.topicList(for: resolved)
+            groups = shell.groupList(for: resolved)
         }
         // Opening Topics or Groups is what connects; merely selecting the connection does not.
         .task(id: OpenRequest(section: shell.selectedSection, session: session.map(ObjectIdentifier.init))) {
@@ -193,11 +202,9 @@ private struct ConnectedColumn: View {
     @ViewBuilder private var sectionContent: some View {
         switch shell.selectedSection {
         case .topics:
-            if let topics { TopicListView(model: topics, refreshToken: refreshToken) } else { Color.clear }
+            if let topics { TopicListView(model: topics, refreshToken: topicRefresh) } else { Color.clear }
         case .groups:
-            ContentUnavailableView(
-                ShellSection.groups.title, systemImage: ShellSection.groups.symbolName,
-                description: Text("Consumer groups are not available yet."))
+            if let groups { GroupListView(model: groups, refreshToken: groupRefresh) } else { Color.clear }
         case nil:
             ContentUnavailableView("Choose Topics or Consumer Groups", systemImage: "sidebar.left")
         }

@@ -217,9 +217,9 @@ struct MessagesView: View {
         .tableStyle(.inset(alternatesRowBackgrounds: true))
         .contextMenu(forSelectionType: MessageID.self) { ids in
             if let id = ids.first {
-                Button("Copy Key") { model.copyRaw(.key, of: id, to: clipboard) }
+                Button("Copy Raw Key") { model.copyRaw(.key, of: id, to: clipboard) }
                     .disabled(!model.canCopyRaw(.key, of: id))
-                Button("Copy Value") { model.copyRaw(.value, of: id, to: clipboard) }
+                Button("Copy Raw Value") { model.copyRaw(.value, of: id, to: clipboard) }
                     .disabled(!model.canCopyRaw(.value, of: id))
             }
         }
