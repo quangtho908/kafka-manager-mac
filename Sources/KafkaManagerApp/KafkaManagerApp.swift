@@ -14,19 +14,11 @@ struct KafkaManagerApp: App {
         static let minHeight: Double = 500
         static let defaultWidth: Double = 1000
         static let defaultHeight: Double = 640
-        static let sidebarMin: Double = 240
-        static let sidebarIdeal: Double = 300
-        static let sidebarMax: Double = 420
     }
 
     var body: some Scene {
         WindowGroup("Kafka Manager") {
-            NavigationSplitView {
-                ConnectionListView(model: environment.connections, formRequest: $formRequest, refreshToken: refreshToken)
-                    .navigationSplitViewColumnWidth(min: Metrics.sidebarMin, ideal: Metrics.sidebarIdeal, max: Metrics.sidebarMax)
-            } detail: {
-                ContentUnavailableView("Select a connection", systemImage: "externaldrive")
-            }
+            ShellView(shell: environment.shell, sessions: environment.sessions, formRequest: $formRequest, refreshToken: refreshToken)
             .frame(minWidth: Metrics.minWidth, minHeight: Metrics.minHeight)
         }
         .defaultSize(width: Metrics.defaultWidth, height: Metrics.defaultHeight)

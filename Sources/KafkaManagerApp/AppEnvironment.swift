@@ -9,6 +9,7 @@ final class AppEnvironment {
     let connections: ConnectionsViewModel
     /// Empty until a feature asks for a cluster; nothing connects at launch.
     let sessions: ClusterSessions
+    let shell: ShellViewModel
 
     init() {
         let store: any ConnectionStore
@@ -23,6 +24,7 @@ final class AppEnvironment {
         connections = ConnectionsViewModel(
             store: store, secrets: secrets, observer: sessions,
             tester: ClientConnectionTester(factory: DefaultClientFactory.demo))
+        shell = ShellViewModel(connections: connections)
     }
 }
 
