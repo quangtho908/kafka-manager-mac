@@ -65,6 +65,10 @@ until you disconnect or switch back).
 
 ### Topics
 
+![Topic list of a connected cluster with search, Show internal and the New Topic and Refresh buttons](docs/images/topics-list.png)
+
+The topic list of a connected cluster.
+
 Pick **Topics** to see the list: search with **Search topics** (Command-F), sort by name, partitions or replication
 factor, and turn on **Show internal** to include internal topics. **Refresh** (Command-R) reloads.
 
@@ -74,6 +78,10 @@ A topic's detail has four tabs:
 - **Config**: the topic's settings; **Only non-default** hides the ones left at their default.
 - **Messages**: see below.
 - **Consumer Groups**: the groups that have committed offsets for this topic or have it assigned, with their state and lag on this topic.
+
+![Topic detail, Partitions tab: leader, replicas, ISR, offsets and status per partition](docs/images/topic-partitions.png)
+
+The Partitions tab of a topic.
 
 **New Topic** creates a topic: **Name**, **Partitions**, **Replication factor** and an optional **Cleanup policy**.
 **Delete Topic…** asks you to retype the topic name. Both are disabled when the cluster is read-only.
@@ -105,6 +113,10 @@ lines** wraps long lines. The panel shows at most 64 KB of a payload; the copy b
 JSON is only formatted up to 32 MB; larger payloads are shown and copied as text.
 
 ### Produce
+
+![Produce Message sheet with partition, key and value](docs/images/produce-sheet.png)
+
+The Produce Message sheet with a JSON value.
 
 **Produce…** in the topic header opens the sheet. It sends one message (or the same message several times).
 
@@ -139,6 +151,10 @@ Only moving offsets is offered. Deleting a group is not, on purpose: a reset is 
 delete discards the group's history.
 
 ### Safety model
+
+![Production connection in read-only mode: red banner, Allow Writes button, and the New Topic, Produce and Delete Topic buttons disabled](docs/images/production-readonly.png)
+
+A Production connection in read-only mode.
 
 - Production connections open read-only. Read-only blocks creating and deleting topics, producing and resetting
   offsets. **Allow Writes…** on Production needs a confirmation and ends when you disconnect.
