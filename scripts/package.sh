@@ -4,7 +4,7 @@
 # Environment (all optional):
 #   BUNDLE_ID   CFBundleIdentifier. Default dev.kafkamanager.app is a PLACEHOLDER: set your own reverse-DNS id
 #               before notarizing (scripts/sign-and-notarize.sh requires it).
-#   ICON_PNG    1024x1024 PNG for the app icon. Default: the placeholder drawn by tools/make-icon.swift.
+#   ICON_PNG    1024x1024 PNG for the app icon. Default: resources/AppIcon-1024.png.
 #   ARCHS       "arm64" (default) or "arm64 x86_64" for a universal binary (needs vendor built for both: scripts/build-deps.sh).
 # The version comes from the VERSION file; the build number is the number of commits on the current branch.
 # An ad-hoc signature is NOT accepted by Gatekeeper on other Macs; real distribution is scripts/sign-and-notarize.sh.
@@ -66,7 +66,7 @@ plutil -lint "$APP/Contents/Info.plist"
 
 echo "==> icon"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
-if [[ -n "${ICON_PNG:-}" ]]; then cp "$ICON_PNG" "$WORK/icon.png"; else swift tools/make-icon.swift "$WORK/icon.png"; fi
+cp "${ICON_PNG:-resources/AppIcon-1024.png}" "$WORK/icon.png"
 ICONSET="$WORK/AppIcon.iconset"; mkdir "$ICONSET"
 for size in 16 32 128 256 512; do
   sips -z $size $size "$WORK/icon.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
