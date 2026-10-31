@@ -366,6 +366,39 @@ struct ClusterSessionsTests {
         #expect(sessions.allSatisfy { $0.status == .idle })
     }
 
+    @Test func editingLocalToProductionMakesTheSessionReadOnlyAtOnce() async throws {
+        let registry = makeRegistry()
+        let profile = plain(.local)
+        let session = await registry.session(for: profile)
+        #expect(!session.isReadOnly)
+        let model = ConnectionsViewModel(store: InMemoryConnectionStore(connections: [profile]), secrets: InMemorySecretStore(), observer: registry)
+        await model.load()
+
+        var edited = profile
+        edited.environment = .production
+        model.didSave(edited)
+        await model.waitForObserverSync()
+        #expect(session.isReadOnly)
+        #expect(EnvironmentBannerPresentation(clusterName: edited.name, environment: session.connection.environment, isReadOnly: session.isReadOnly).toggleNeedsConfirmation)
+    }
+
+    @Test func editingLocalToProductionWhileConnectedBlocksWritesOnTheNextClient() async throws {
+        let registry = makeRegistry()
+        let profile = plain(.local)
+        let session = await registry.session(for: profile)
+        _ = try await session.ensureConnected()
+        let model = ConnectionsViewModel(store: InMemoryConnectionStore(connections: [profile]), secrets: InMemorySecretStore(), observer: registry)
+        await model.load()
+
+        var edited = profile
+        edited.environment = .production
+        model.didSave(edited)
+        await model.waitForObserverSync()
+        #expect(session.isReadOnly)
+        let client = try await session.ensureConnected()
+        await #expect(throws: KafkaError.self) { try await client.deleteTopic("spike-x") }
+    }
+
     @Test func connectionsViewModelNotifiesTheRegistry() async throws {
         let registry = makeRegistry()
         let profile = plain()

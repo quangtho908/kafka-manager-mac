@@ -8,6 +8,7 @@ struct KafkaManagerApp: App {
     @State private var environment = AppEnvironment()
     @State private var formRequest: ConnectionFormRequest?
     @State private var refreshToken = 0
+    @FocusedValue(\.findAction) private var findAction
 
     private enum Metrics {
         static let minWidth: Double = 800
@@ -29,6 +30,12 @@ struct KafkaManagerApp: App {
                     .keyboardShortcut("n", modifiers: .command)
                 Button("Refresh") { refreshToken += 1 }
                     .keyboardShortcut("r", modifiers: .command)
+            }
+            // Enabled once a screen publishes a search field through `findAction`.
+            CommandGroup(after: .textEditing) {
+                Button("Find") { findAction?() }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .disabled(findAction == nil)
             }
         }
     }

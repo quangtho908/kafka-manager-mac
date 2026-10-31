@@ -91,3 +91,49 @@ struct SessionStatusPresentationTests {
         #expect(Status.connected.action == .disconnect)
     }
 }
+
+@Suite("EnvironmentBannerPresentation")
+struct EnvironmentBannerPresentationTests {
+    private func banner(_ environment: ClusterConnection.Environment, readOnly: Bool) -> EnvironmentBannerPresentation {
+        EnvironmentBannerPresentation(clusterName: "prod-eu", environment: environment, isReadOnly: readOnly)
+    }
+
+    @Test func toneAndEmphasisFollowTheEnvironment() {
+        #expect(banner(.local, readOnly: false).tone == .calm)
+        #expect(banner(.staging, readOnly: false).tone == .caution)
+        #expect(banner(.production, readOnly: true).tone == .danger)
+        #expect(banner(.production, readOnly: true).isEmphasized)
+        #expect(!banner(.local, readOnly: false).isEmphasized)
+        #expect(!banner(.staging, readOnly: false).isEmphasized)
+    }
+
+    @Test func environmentsDifferInTextAndSymbol() {
+        let all = ClusterConnection.Environment.allCases.map { banner($0, readOnly: false) }
+        #expect(Set(all.map(\.environmentLabel)).count == all.count)
+        #expect(Set(all.map(\.environmentSymbol)).count == all.count)
+    }
+
+    @Test func readOnlyHasItsOwnTextAndSymbol() {
+        let on = banner(.local, readOnly: true), off = banner(.local, readOnly: false)
+        #expect(on.readOnlyLabel != off.readOnlyLabel)
+        #expect(on.readOnlySymbol != off.readOnlySymbol)
+        #expect(on.toggleTitle != off.toggleTitle)
+    }
+
+    @Test func onlyAllowingWritesOnProductionNeedsConfirmation() {
+        #expect(banner(.production, readOnly: true).toggleNeedsConfirmation)
+        #expect(!banner(.production, readOnly: false).toggleNeedsConfirmation)
+        #expect(!banner(.local, readOnly: true).toggleNeedsConfirmation)
+        #expect(!banner(.staging, readOnly: true).toggleNeedsConfirmation)
+        #expect(!banner(.local, readOnly: false).toggleNeedsConfirmation)
+    }
+
+    @Test func confirmationNamesTheClusterAndAccessibilityIsOneLabel() {
+        let p = banner(.production, readOnly: true)
+        #expect(p.confirmationTitle.contains("prod-eu"))
+        #expect(p.confirmationMessage.contains("prod-eu"))
+        #expect(p.accessibilityLabel.contains("prod-eu"))
+        #expect(p.accessibilityLabel.contains(p.environmentLabel))
+        #expect(p.accessibilityLabel.contains(p.readOnlyLabel))
+    }
+}

@@ -84,6 +84,11 @@ private struct ActionRequest: Hashable {
     let nonce: Int
 }
 
+private struct ReadOnlyRequest: Hashable {
+    let value: Bool
+    let nonce: Int
+}
+
 private struct ConnectedColumn: View {
     let connection: ClusterConnection
     @Bindable var shell: ShellViewModel
@@ -92,9 +97,11 @@ private struct ConnectedColumn: View {
     @State private var session: ClusterSession?
     @State private var actionRequest: ActionRequest?
     @State private var actionCount = 0
+    @State private var readOnlyRequest: ReadOnlyRequest?
 
     var body: some View {
         VStack(spacing: 0) {
+            banner
             if let session {
                 StatusArea(session: session, onAction: request)
                 Divider()
@@ -112,6 +119,10 @@ private struct ConnectedColumn: View {
         .task(id: OpenRequest(section: shell.selectedSection, session: session.map(ObjectIdentifier.init))) {
             if shell.selectedSection != nil, let session { _ = try? await session.ensureConnected() }
         }
+        .task(id: readOnlyRequest) {
+            guard let request = readOnlyRequest, let session else { return }
+            await session.setReadOnly(request.value)
+        }
         .task(id: actionRequest) {
             guard let request = actionRequest, let session else { return }
             switch request.action {
@@ -119,6 +130,19 @@ private struct ConnectedColumn: View {
             case .disconnect: await session.disconnect()
             }
         }
+    }
+
+    private var banner: some View {
+        let isReadOnly = session?.isReadOnly ?? GuardedKafkaClient.defaultReadOnly(for: connection.environment)
+        let presentation = EnvironmentBannerPresentation(
+            clusterName: connection.name, environment: connection.environment, isReadOnly: isReadOnly)
+        let handler: ((Bool) -> Void)? = session == nil ? nil : { requestReadOnly($0) }
+        return EnvironmentBanner(presentation: presentation, onSetReadOnly: handler)
+    }
+
+    private func requestReadOnly(_ value: Bool) {
+        actionCount += 1
+        readOnlyRequest = ReadOnlyRequest(value: value, nonce: actionCount)
     }
 
     private func request(_ action: SessionAction) {
