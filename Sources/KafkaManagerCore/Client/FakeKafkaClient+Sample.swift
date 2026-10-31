@@ -72,9 +72,14 @@ extension FakeKafkaClient {
         }
     }
 
+    /// Number of groups in the sample dataset.
+    public static let sampleGroupCount = 40
+
+    /// `orders-service` and `payments-service` keep their hand-made lag cases (no commit, committed past the end).
+    /// The other 38 cycle through all states; their lag depends on the index so totals differ.
     private static func sampleGroups(end: Int64) -> [GroupDetail] {
         let member = GroupMemberInfo(id: "member-1", clientId: "sample-client", host: "/127.0.0.1", assignments: ["orders": [0, 1, 2]])
-        return [
+        var groups = [
             GroupDetail(id: "orders-service", state: "Stable", members: [member], lags: [
                 PartitionLag(topic: "orders", partition: 0, committedOffset: end - 5, startOffset: 0, endOffset: end),
                 PartitionLag(topic: "orders", partition: 1, committedOffset: end, startOffset: 0, endOffset: end),
@@ -84,5 +89,23 @@ extension FakeKafkaClient {
                 PartitionLag(topic: "payments", partition: 0, committedOffset: end + 20, startOffset: 0, endOffset: end),
             ]),
         ]
+        let states = ["Stable", "PreparingRebalance", "CompletingRebalance", "Empty", "Dead", "Stable", "Stable", "Empty"]
+        for index in 2..<sampleGroupCount {
+            let state = states[index % states.count]
+            let memberCount = (state == "Stable" || state.hasSuffix("Rebalance")) ? 1 + index % 4 : 0
+            let members = (0..<memberCount).map { number in
+                GroupMemberInfo(id: "member-\(index)-\(number)", clientId: "client-\(index)", host: "/10.0.0.\(number + 1)",
+                                assignments: ["orders": [number % 3]])
+            }
+            let topic = index % 2 == 0 ? "orders" : "payments"
+            let lags = (0..<3).map { partition in
+                PartitionLag(
+                    topic: topic, partition: partition,
+                    committedOffset: Int64(index * partition) % 7 == 0 ? nil : max(0, end - Int64(index * (partition + 1))),
+                    startOffset: 0, endOffset: end)
+            }
+            groups.append(GroupDetail(id: String(format: "sample-group-%02d", index), state: state, members: members, lags: lags))
+        }
+        return groups
     }
 }

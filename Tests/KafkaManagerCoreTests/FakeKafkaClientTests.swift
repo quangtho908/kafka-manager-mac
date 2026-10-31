@@ -233,8 +233,10 @@ private func collect(_ stream: AsyncThrowingStream<KafkaMessage, Error>) async t
 @Test func listGroupsReturnsSortedSummaries() async throws {
     let fake = try await connected()
     let groups = try await fake.listGroups()
-    #expect(groups.map(\.id) == ["orders-service", "payments-service"])
-    #expect(groups.first?.memberCount == 1)
+    #expect(groups.map(\.id) == groups.map(\.id).sorted())
+    #expect(groups.count == FakeKafkaClient.sampleGroupCount)
+    #expect(groups.first { $0.id == "orders-service" }?.memberCount == 1)
+    #expect(groups.contains { $0.id == "payments-service" })
 }
 
 @Test func describeGroupExposesNoCommitAndCommittedAheadCases() async throws {

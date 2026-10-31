@@ -45,6 +45,8 @@ public final class ShellViewModel {
     /// the profile starts a fresh list, since it may now point at another cluster.
     private var topicLists: [UUID: (connection: ClusterConnection, model: TopicListViewModel)] = [:]
 
+    private var groupLists: [UUID: (connection: ClusterConnection, model: GroupListViewModel)] = [:]
+
     public init(connections: ConnectionsViewModel) {
         self.connections = connections
     }
@@ -80,11 +82,27 @@ public final class ShellViewModel {
         return created
     }
 
+    /// The group list of the selected connection, once its session has been resolved.
+    public var selectedGroupList: GroupListViewModel? {
+        selectedConnection.flatMap { groupLists[$0.id] }?.model
+    }
+
+    public func groupList(for session: ClusterSession) -> GroupListViewModel {
+        let connection = session.connection
+        if let existing = groupLists[connection.id], existing.connection == connection, existing.model.belongs(to: session) {
+            return existing.model
+        }
+        let created = GroupListViewModel(session: session)
+        groupLists[connection.id] = (connection, created)
+        return created
+    }
+
     /// Clears a selection whose profile is gone, once the list is known. Does nothing while loading.
     public func pruneSelection() {
         if let loaded = connections.state.value {
             let ids = Set(loaded.map(\.id))
             topicLists = topicLists.filter { ids.contains($0.key) }
+            groupLists = groupLists.filter { ids.contains($0.key) }
         }
         guard connections.selection != nil, connections.state.value != nil, selectedConnection == nil else { return }
         connections.selection = nil
