@@ -300,3 +300,19 @@ private func collect(_ stream: AsyncThrowingStream<KafkaMessage, Error>) async t
     try await fake.connect(ClusterConnection(name: "c", bootstrapServers: "h:9092"), credentials: nil)
     #expect(try await fake.describeCluster() == ClusterInfo(brokerCount: 5))
 }
+
+@Test func sampleDataHasUnhealthyAndCustomisedTopicsDeterministically() async throws {
+    let client = FakeKafkaClient.sampleData(topicCount: 60)
+    try await client.connect(ClusterConnection(name: "c", bootstrapServers: "h:9092"), credentials: nil)
+    var underReplicated = 0, leaderless = 0, nonDefault = 0
+    for topic in try await client.listTopics() {
+        let detail = try await client.describeTopic(topic.name)
+        underReplicated += detail.partitions.filter(\.isUnderReplicated).count
+        leaderless += detail.partitions.filter(\.isLeaderless).count
+        nonDefault += detail.configEntries.filter { !$0.isDefault }.count
+    }
+    #expect(underReplicated > 0 && leaderless > 0 && nonDefault > 0)
+    let payments = try await client.describeTopic("payments")
+    #expect(payments.configEntries.contains { $0.isSensitive && $0.value == nil })
+    #expect(!payments.config.values.contains("never-shown"))
+}

@@ -39,3 +39,38 @@ struct TopicInternalTests {
         #expect(!TopicSummary(name: name, partitionCount: 1, replicationFactor: 1).isInternal)
     }
 }
+
+@Suite("Config and partition flags")
+struct ConfigAndPartitionFlagTests {
+    @Test func sensitiveEntryNeverKeepsItsValue() {
+        let entry = ConfigEntry(name: "secret", value: "hunter2", isDefault: false, isSensitive: true)
+        #expect(entry.value == nil)
+        #expect(!"\(entry)".contains("hunter2"))
+    }
+
+    @Test func plainDictionaryIsTakenAsOverridesAndSorted() {
+        let detail = TopicDetail(name: "t", partitions: [], config: ["b": "2", "a": "1"])
+        #expect(detail.configEntries.map(\.name) == ["a", "b"])
+        #expect(detail.configEntries.allSatisfy { !$0.isDefault && !$0.isSensitive })
+        #expect(detail.config == ["a": "1", "b": "2"])
+    }
+
+    @Test func explicitEntriesDriveTheDictionaryWithoutSensitiveValues() {
+        let detail = TopicDetail(name: "t", partitions: [], configEntries: [
+            ConfigEntry(name: "z", value: "1", isDefault: true),
+            ConfigEntry(name: "s", value: "x", isDefault: false, isSensitive: true),
+        ])
+        #expect(detail.configEntries.map(\.name) == ["s", "z"])
+        #expect(detail.config == ["z": "1"])
+    }
+
+    @Test func offsetsAndLeaderFlags() {
+        let backwards = PartitionInfo(id: 0, leader: nil, replicas: [1], isr: [1], startOffset: 10, endOffset: 4)
+        #expect(backwards.hasInvalidOffsets)
+        #expect(backwards.messageCount == 0)
+        #expect(backwards.isLeaderless)
+        #expect(PartitionInfo(id: 0, leader: -1, replicas: [1], isr: [1], startOffset: 0, endOffset: 0).isLeaderless)
+        let healthy = PartitionInfo(id: 0, leader: 1, replicas: [1], isr: [1], startOffset: 2, endOffset: 7)
+        #expect(!healthy.hasInvalidOffsets && !healthy.isLeaderless && healthy.messageCount == 5)
+    }
+}

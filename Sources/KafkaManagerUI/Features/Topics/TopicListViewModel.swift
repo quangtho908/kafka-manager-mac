@@ -21,6 +21,8 @@ public final class TopicListViewModel {
     public var sortAscending = true
     /// Topic name.
     public var selection: String?
+    /// Set when the selected topic turned out to be deleted by someone else; stays until dismissed.
+    public private(set) var removedTopicNotice: String?
 
     @ObservationIgnored private let session: ClusterSession
     @ObservationIgnored private let now: @MainActor () -> Date
@@ -29,6 +31,7 @@ public final class TopicListViewModel {
     @ObservationIgnored private var loadID = 0
     /// Bumped whenever `state` gets a new list, so cached results know the data changed.
     @ObservationIgnored private var dataRevision = 0
+    @ObservationIgnored private var detail: TopicDetailViewModel?
     @ObservationIgnored private var sortedCache: SortedCache?
     @ObservationIgnored private var visibleCache: VisibleCache?
 
@@ -59,6 +62,27 @@ public final class TopicListViewModel {
     }
 
     public func belongs(to other: ClusterSession) -> Bool { session === other }
+
+    // MARK: Detail
+
+    /// The detail model for a topic. Only the current one is kept, so browsing never accumulates models.
+    public func detailModel(for topic: String) -> TopicDetailViewModel {
+        if let detail, detail.topicName == topic { return detail }
+        let created = TopicDetailViewModel(session: session, topicName: topic) { [weak self] name in
+            await self?.topicWasRemoved(name)
+        }
+        detail = created
+        return created
+    }
+
+    public func dismissRemovedTopicNotice() { removedTopicNotice = nil }
+
+    /// The list is reloaded once; the reload also clears the selection if the topic is really gone.
+    private func topicWasRemoved(_ name: String) async {
+        removedTopicNotice = String(localized: "The topic \(name) no longer exists. It may have been deleted.")
+        await refresh()
+        if selection == name { selection = nil }
+    }
 
     // MARK: Loading
 

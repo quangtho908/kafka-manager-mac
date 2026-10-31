@@ -12,16 +12,32 @@ extension FakeKafkaClient {
             switch index {
             case 0: sampleTopic(name: "orders", messagesPerPartition: sampleMessagesPerPartition)
             case 1: sampleTopic(name: "payments", messagesPerPartition: sampleMessagesPerPartition)
-            default: sampleTopic(name: String(format: "topic-%05d", index), messagesPerPartition: 0)
+            default: sampleTopic(name: String(format: "topic-%05d", index), messagesPerPartition: 0, variant: index)
             }
         }
         seeds.sort { $0.detail.name < $1.detail.name }
         return FakeKafkaClient(topics: seeds, groups: topicCount >= 2 ? sampleGroups() : [])
     }
 
-    private static func sampleTopic(name: String, messagesPerPartition: Int) -> SeedTopic {
-        let partitions = (0..<samplePartitions).map {
+    /// `variant` makes some generated topics unhealthy or customised, deterministically: every 7th has an
+    /// under-replicated partition, every 11th a leaderless one, every 5th overrides its retention.
+    private static func sampleTopic(name: String, messagesPerPartition: Int, variant: Int = 0) -> SeedTopic {
+        var partitions = (0..<samplePartitions).map {
             PartitionInfo(id: $0, leader: 1, replicas: [1, 2, 3], isr: [1, 2, 3], startOffset: 0, endOffset: Int64(messagesPerPartition))
+        }
+        if variant % 7 == 3 {
+            partitions[1] = PartitionInfo(id: 1, leader: 1, replicas: [1, 2, 3], isr: [1, 2], startOffset: 0, endOffset: Int64(messagesPerPartition))
+        }
+        if variant % 11 == 5 {
+            partitions[2] = PartitionInfo(id: 2, leader: nil, replicas: [1, 2, 3], isr: [], startOffset: 0, endOffset: Int64(messagesPerPartition))
+        }
+        var entries = [
+            ConfigEntry(name: "cleanup.policy", value: name == "orders" ? "compact" : "delete", isDefault: name != "orders"),
+            ConfigEntry(name: "retention.ms", value: variant % 5 == 0 && variant > 1 ? "3600000" : "604800000", isDefault: !(variant % 5 == 0 && variant > 1)),
+            ConfigEntry(name: "segment.bytes", value: "1073741824", isDefault: true),
+        ]
+        if name == "payments" {
+            entries.append(ConfigEntry(name: "sample.credentials", value: "never-shown", isDefault: false, isSensitive: true))
         }
         let messages = (0..<samplePartitions).flatMap { partition in
             (0..<messagesPerPartition).map { offset in
@@ -35,7 +51,7 @@ extension FakeKafkaClient {
             }
         }
         return SeedTopic(
-            detail: TopicDetail(name: name, partitions: partitions, config: ["retention.ms": "604800000"]),
+            detail: TopicDetail(name: name, partitions: partitions, configEntries: entries),
             messages: messages
         )
     }

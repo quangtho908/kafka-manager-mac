@@ -20,16 +20,41 @@ public struct TopicSummary: Identifiable, Hashable, Sendable {
     public static func isInternalName(_ name: String) -> Bool { name.hasPrefix("_") }
 }
 
+/// One topic config setting. A sensitive entry never holds its value: the initializer drops it.
+public struct ConfigEntry: Identifiable, Hashable, Sendable {
+    public var id: String { name }
+    public let name: String
+    /// nil when the value is sensitive or the broker did not return one.
+    public let value: String?
+    /// True when the broker's default is in effect; false when the topic overrides it.
+    public let isDefault: Bool
+    public let isSensitive: Bool
+
+    public init(name: String, value: String?, isDefault: Bool, isSensitive: Bool = false) {
+        self.name = name
+        self.value = isSensitive ? nil : value
+        self.isDefault = isDefault
+        self.isSensitive = isSensitive
+    }
+}
+
 public struct TopicDetail: Identifiable, Hashable, Sendable {
     public var id: String { name }
     public let name: String
     public let partitions: [PartitionInfo]
+    /// Non-sensitive config values by name.
     public let config: [String: String]
+    /// Every setting with its default / sensitive flags, sorted by name.
+    public let configEntries: [ConfigEntry]
 
-    public init(name: String, partitions: [PartitionInfo], config: [String: String] = [:]) {
+    /// - Parameter configEntries: when nil, `config` is taken as the topic's explicit overrides (so none is a default).
+    public init(name: String, partitions: [PartitionInfo], config: [String: String] = [:], configEntries: [ConfigEntry]? = nil) {
         self.name = name
         self.partitions = partitions
-        self.config = config
+        let entries = configEntries ?? config.map { ConfigEntry(name: $0.key, value: $0.value, isDefault: false) }
+        self.configEntries = entries.sorted { $0.name < $1.name }
+        self.config = configEntries == nil ? config : Dictionary(
+            entries.compactMap { entry in entry.value.map { (entry.name, $0) } }, uniquingKeysWith: { first, _ in first })
     }
 }
 
@@ -51,7 +76,11 @@ public struct PartitionInfo: Identifiable, Hashable, Sendable {
         self.endOffset = endOffset
     }
 
+    /// Never negative; see `hasInvalidOffsets`.
     public var messageCount: Int64 { max(0, endOffset - startOffset) }
+    /// The end offset is before the start offset, which a healthy partition never reports.
+    public var hasInvalidOffsets: Bool { endOffset < startOffset }
+    public var isLeaderless: Bool { leader == nil || leader == -1 }
     public var isUnderReplicated: Bool { isr.count < replicas.count }
 }
 

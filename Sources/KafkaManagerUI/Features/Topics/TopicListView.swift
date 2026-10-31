@@ -27,6 +27,15 @@ public struct TopicListView: View {
     public var body: some View {
         VStack(spacing: 0) {
             header
+            if let notice = model.removedTopicNotice {
+                HStack {
+                    Label(notice, systemImage: "trash.slash").font(.callout)
+                    Spacer()
+                    Button("Dismiss") { model.dismissRemovedTopicNotice() }.controlSize(.small)
+                }
+                .padding(Metrics.padding)
+                .background(Color.orange.opacity(0.18))
+            }
             Divider()
             StateView(
                 state: model.state,

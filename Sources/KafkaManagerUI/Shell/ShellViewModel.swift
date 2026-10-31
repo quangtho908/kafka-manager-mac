@@ -43,7 +43,7 @@ public final class ShellViewModel {
     private var sectionOwner: UUID?
     /// One topic list per cluster profile, so its list, search and sort survive switching sections or clusters. Editing
     /// the profile starts a fresh list, since it may now point at another cluster.
-    @ObservationIgnored private var topicLists: [UUID: (connection: ClusterConnection, model: TopicListViewModel)] = [:]
+    private var topicLists: [UUID: (connection: ClusterConnection, model: TopicListViewModel)] = [:]
 
     public init(connections: ConnectionsViewModel) {
         self.connections = connections
@@ -63,6 +63,11 @@ public final class ShellViewModel {
             section = newValue
             sectionOwner = selectedConnection?.id
         }
+    }
+
+    /// The topic list of the selected connection, once its session has been resolved.
+    public var selectedTopicList: TopicListViewModel? {
+        selectedConnection.flatMap { topicLists[$0.id] }?.model
     }
 
     public func topicList(for session: ClusterSession) -> TopicListViewModel {

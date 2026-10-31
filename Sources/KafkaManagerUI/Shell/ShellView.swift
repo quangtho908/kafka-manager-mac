@@ -41,12 +41,43 @@ public struct ShellView: View {
             ClusterColumn(shell: shell, sessions: sessions, refreshToken: topicRefresh)
                 .navigationSplitViewColumnWidth(min: Metrics.contentMin, ideal: Metrics.contentIdeal, max: Metrics.contentMax)
         } detail: {
-            DetailPlaceholder(section: shell.selectedSection, hasConnection: shell.selectedConnection != nil)
+            DetailColumn(shell: shell)
         }
         .onChange(of: shell.connections.state) { shell.pruneSelection() }
         .onChange(of: refreshToken) {
             if shell.selectedSection == .topics { topicRefresh += 1 } else { connectionRefresh += 1 }
         }
+    }
+}
+
+/// Column 3: the selected topic's detail, or the placeholder for what is open.
+private struct DetailColumn: View {
+    let shell: ShellViewModel
+
+    var body: some View {
+        if shell.selectedSection == .topics, let list = shell.selectedTopicList, let topic = list.selection {
+            TopicDetailHost(list: list, topic: topic)
+        } else {
+            DetailPlaceholder(section: shell.selectedSection, hasConnection: shell.selectedConnection != nil)
+        }
+    }
+}
+
+/// Owns the detail model for the selected topic; it is fetched in a task, not in body.
+private struct TopicDetailHost: View {
+    let list: TopicListViewModel
+    let topic: String
+    @State private var model: TopicDetailViewModel?
+
+    var body: some View {
+        Group {
+            if let model, model.topicName == topic {
+                TopicDetailView(model: model).id(topic)
+            } else {
+                Color.clear
+            }
+        }
+        .task(id: topic) { model = list.detailModel(for: topic) }
     }
 }
 
