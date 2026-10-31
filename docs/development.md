@@ -16,8 +16,17 @@ Toolchain: Swift 6 (đã kiểm tra với Swift 6.4, Xcode 27). Mở `Package.sw
 Sources/KafkaManagerCore/   domain models, Kafka client layer (không import UI)
 Sources/KafkaManagerApp/    SwiftUI app (@main), chỉ phụ thuộc Core
 Tests/KafkaManagerCoreTests Swift Testing
-scripts/dev.sh              build | test | run
+scripts/dev.sh              build | test | run | deps | itest
+Sources/KafkaManagerKafka/  LiveKafkaClient trên librdkafka (chỉ target này thấy CRdKafka)
+vendor/                     librdkafka + OpenSSL tĩnh (git-ignored, do scripts/build-deps.sh tạo)
 ```
+
+## Kafka thật (T60)
+
+- `scripts/dev.sh deps` build `vendor/` một lần (~5 phút, arm64). Không có `vendor/`: `Package.swift` bỏ target `CRdKafka`/`KafkaManagerKafka`/`KafkaManagerKafkaTests`, Core/UI vẫn build và test; app chỉ chạy demo (kết nối thật báo lỗi rõ ràng). `scripts/dev.sh` luôn gọi `swift` với `--manifest-cache none` vì cache manifest của SwiftPM không biết `vendor/` thay đổi; khi chạy `swift` trực tiếp sau khi thêm/xoá `vendor/`, thêm cờ đó một lần.
+- App mặc định nói chuyện với broker thật. `KAFKAMANAGER_DEMO=1` chuyển sang cluster demo (Fake); `KAFKAMANAGER_DATABASE=/đường/dẫn.sqlite` dùng DB riêng.
+- `scripts/dev.sh itest` chạy test tích hợp với broker `localhost:9092` (đổi bằng `KM_ITEST_BOOTSTRAP`); chỉ tạo/xoá topic `km-itest-*`. `swift test` thường bỏ qua chúng.
+- Mọi lời gọi C chặn đều chạy trên queue riêng của `LiveKafkaClient`, có timeout (mặc định 10 s); mỗi đối tượng C có wrapper RAII và được đếm trong `ResourceCounters` (test phát hiện rò rỉ).
 
 ## Quy ước
 

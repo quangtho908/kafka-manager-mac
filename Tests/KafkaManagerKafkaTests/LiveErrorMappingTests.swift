@@ -1,0 +1,78 @@
+import CRdKafka
+import KafkaManagerCore
+import Testing
+@testable import KafkaManagerKafka
+
+struct LiveErrorMappingTests {
+    private static func map(_ code: rd_kafka_resp_err_t, detail: String? = nil, secrets: [String] = []) -> KafkaError {
+        LiveErrorMapping.map(code: code.rawValue, host: "broker-1", resource: "orders", detail: detail, secrets: secrets)
+    }
+
+    @Test(arguments: [
+        (RD_KAFKA_RESP_ERR__TRANSPORT, KafkaError.unreachable(host: "broker-1")),
+        (RD_KAFKA_RESP_ERR__ALL_BROKERS_DOWN, .unreachable(host: "broker-1")),
+        (RD_KAFKA_RESP_ERR__RESOLVE, .unreachable(host: "broker-1")),
+        (RD_KAFKA_RESP_ERR__TIMED_OUT, .timeout),
+        (RD_KAFKA_RESP_ERR__TIMED_OUT_QUEUE, .timeout),
+        (RD_KAFKA_RESP_ERR_REQUEST_TIMED_OUT, .timeout),
+        (RD_KAFKA_RESP_ERR__AUTHENTICATION, .authenticationFailed),
+        (RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED, .authenticationFailed),
+        (RD_KAFKA_RESP_ERR_UNSUPPORTED_SASL_MECHANISM, .authenticationFailed),
+        (RD_KAFKA_RESP_ERR_ILLEGAL_SASL_STATE, .authenticationFailed),
+        (RD_KAFKA_RESP_ERR__SSL, .authenticationFailed),
+        (RD_KAFKA_RESP_ERR_TOPIC_AUTHORIZATION_FAILED, .authorizationFailed(resource: "orders")),
+        (RD_KAFKA_RESP_ERR_GROUP_AUTHORIZATION_FAILED, .authorizationFailed(resource: "orders")),
+        (RD_KAFKA_RESP_ERR_CLUSTER_AUTHORIZATION_FAILED, .authorizationFailed(resource: "orders")),
+        (RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART, .unknownTopic("orders")),
+        (RD_KAFKA_RESP_ERR__UNKNOWN_TOPIC, .unknownTopic("orders")),
+        (RD_KAFKA_RESP_ERR__UNKNOWN_PARTITION, .unknownTopic("orders")),
+        (RD_KAFKA_RESP_ERR_TOPIC_ALREADY_EXISTS, .topicAlreadyExists("orders")),
+    ])
+    func mapsKnownCodes(code: rd_kafka_resp_err_t, expected: KafkaError) {
+        #expect(Self.map(code) == expected)
+    }
+
+    @Test func validationCodesKeepTheKafkaProtocolNumbers() {
+        for (code, expected) in [
+            (RD_KAFKA_RESP_ERR_TOPIC_EXCEPTION, KafkaError.invalidTopicCode),
+            (RD_KAFKA_RESP_ERR_INVALID_PARTITIONS, KafkaError.invalidPartitionsCode),
+            (RD_KAFKA_RESP_ERR_INVALID_REPLICATION_FACTOR, KafkaError.invalidReplicationFactorCode),
+        ] {
+            guard case .clusterError(let mapped, _) = Self.map(code) else {
+                Issue.record("expected clusterError for \(code.rawValue)")
+                continue
+            }
+            #expect(mapped == expected)
+        }
+    }
+
+    @Test func unknownCodesBecomeClusterErrorsWithTheirCode() {
+        let error = Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE)
+        guard case .clusterError(let code, let message) = error else {
+            Issue.record("expected clusterError")
+            return
+        }
+        #expect(code == Int(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE.rawValue))
+        #expect(!message.isEmpty)
+    }
+
+    @Test func userMessageNeverShowsTheRawText() {
+        let error = Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE, detail: "raw broker text 12345")
+        #expect(!error.userMessage.contains("raw broker text"))
+    }
+
+    @Test func secretsAreRemovedFromDiagnostics() {
+        let error = Self.map(RD_KAFKA_RESP_ERR_UNKNOWN, detail: "login alice with hunter2 failed", secrets: ["hunter2", "alice"])
+        guard case .clusterError(_, let message) = error else {
+            Issue.record("expected clusterError")
+            return
+        }
+        #expect(!message.contains("hunter2"))
+        #expect(!message.contains("alice"))
+        #expect(message.contains("<redacted>"))
+    }
+
+    @Test func emptySecretsDoNotEraseEverything() {
+        #expect(LiveErrorMapping.sanitize("text", code: -1, secrets: [""]) == "text")
+    }
+}

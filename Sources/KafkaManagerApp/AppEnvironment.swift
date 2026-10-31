@@ -1,6 +1,9 @@
 import Foundation
 import KafkaManagerCore
 import KafkaManagerUI
+#if LIVE_KAFKA
+import KafkaManagerKafka
+#endif
 
 /// Composition root. Construction does no I/O beyond resolving the database path: the SQLite file is opened by the
 /// first list load, and the Keychain is touched only when a form saves or checks for a stored password.
@@ -20,11 +23,11 @@ final class AppEnvironment {
             store = UnavailableConnectionStore()
         }
         let secrets = KeychainSecretStore()
-        let sessions = ClusterSessions(secrets: secrets, factory: DefaultClientFactory.demo)
+        let sessions = ClusterSessions(secrets: secrets, factory: DefaultClientFactory.current)
         self.sessions = sessions
         connections = ConnectionsViewModel(
             store: store, secrets: secrets, observer: sessions,
-            tester: ClientConnectionTester(factory: DefaultClientFactory.demo))
+            tester: ClientConnectionTester(factory: DefaultClientFactory.current))
         shell = ShellViewModel(connections: connections)
     }
 }
@@ -50,11 +53,46 @@ enum DefaultClientFactory {
         return count
     }()
 
-    /// Demo data for every profile. Replace with LiveKafkaClient in T60.
+    /// Demo data for every profile.
     static let demo: ClientFactory = { _ in
         FakeKafkaClient.sampleData(topicCount: demoTopicCount, messagesPerPartition: demoMessagesPerPartition)
     }
+
+    /// A librdkafka client per profile, created lazily on connect. In a build without `vendor/` it reports why it can't work.
+    static let live: ClientFactory = { _ in
+        #if LIVE_KAFKA
+        LiveKafkaClient()
+        #else
+        NoKafkaClient()
+        #endif
+    }
+
+    /// `KAFKAMANAGER_DEMO=1` makes every profile talk to the built-in demo cluster; otherwise profiles talk to real brokers.
+    static let current: ClientFactory = {
+        ProcessInfo.processInfo.environment["KAFKAMANAGER_DEMO"] == "1" ? demo : live
+    }()
 }
+
+#if !LIVE_KAFKA
+/// Stands in for the live client when the app was built without the vendored librdkafka (`scripts/dev.sh deps`).
+private struct NoKafkaClient: KafkaClient {
+    private static let failure = KafkaError.clusterError(
+        code: -2, message: "This build has no Kafka support. Run scripts/dev.sh deps and rebuild, or set KAFKAMANAGER_DEMO=1.")
+
+    func connect(_ cluster: ClusterConnection, credentials: Credentials?) async throws { throw Self.failure }
+    func disconnect() async {}
+    func describeCluster() async throws -> ClusterInfo { throw Self.failure }
+    func listTopics() async throws -> [TopicSummary] { throw Self.failure }
+    func describeTopic(_ name: String) async throws -> TopicDetail { throw Self.failure }
+    func createTopic(_ spec: NewTopic) async throws { throw Self.failure }
+    func deleteTopic(_ name: String) async throws { throw Self.failure }
+    func fetchMessages(_ query: MessageQuery) -> AsyncThrowingStream<KafkaMessage, Error> {
+        AsyncThrowingStream { $0.finish(throwing: Self.failure) }
+    }
+    func listGroups() async throws -> [GroupSummary] { throw Self.failure }
+    func describeGroup(_ id: String) async throws -> GroupDetail { throw Self.failure }
+}
+#endif
 
 extension AppEnvironment {
     /// `KAFKAMANAGER_DATABASE` points the app at another file, so manual testing never touches real profiles.
