@@ -85,7 +85,23 @@ Cổng đỏ → không được chuyển `review`.
 - [ ] Giữ đúng phong cách các file xung quanh (xem file lân cận trước khi viết).
 - [ ] Chuỗi hiển thị cho người dùng: dùng `String(localized:)`; mặc định tiếng Anh, tiếng Việt thêm sau (chốt với BA).
 
-### I. SwiftUI
+### I. SwiftUI (BẮT BUỘC theo skill `swiftui-macos`)
+Mọi task có UI/view model phải tuân theo skill `.claude/skills/swiftui-macos/` (SKILL.md + references). Coder **nạp skill trước khi viết code** và nêu trong báo cáo đã đọc reference nào; BA review UI theo cùng các reference đó. Vi phạm skill = MAJOR (BLOCKER nếu gây sai hành vi/hiệu năng nghiêm trọng).
+
+| Task đụng tới | Reference bắt buộc đọc và áp dụng |
+|---|---|
+| `@Observable`, `@State`, `ForEach`, view model | `observation.md` |
+| `Task`, async, actor, `AsyncStream` | `concurrency.md` |
+| Danh sách/bảng lớn, animation, stream cập nhật UI | `performance.md` |
+| Cấu trúc view, điều hướng, `.task(id:)` | `views.md` |
+| Kiến trúc state, environment, lưu trữ | `data.md` |
+| `NSViewRepresentable`, nhiều cửa sổ, AppKit | `platform.md` |
+| Scene, window, menu/Commands, Settings, file dialog, `Table` | `scenes.md` |
+| Chọn API, tránh API deprecated | `api.md` |
+| Mọi UI | `accessibility.md` |
+
+- [ ] **Chạy được trên macOS 14**: mọi API mới hơn 14 nằm sau `#available`/`@available` có phương án dự phòng; báo cáo liệt kê API nào đã kiểm tra availability. API macOS 15/26 không guard = MAJOR (BLOCKER nếu là đường chính của tính năng).
+- [ ] Đã áp dụng đúng các reference của skill ở bảng trên; không dùng API/pattern skill cấm (deprecated, `ObservableObject`/`@Published` thay `@Observable`, `DispatchQueue` thay concurrency…).
 - [ ] `@Observable` + `@MainActor` cho view model; `@State` sở hữu ở view gốc tính năng.
 - [ ] View nhỏ, ghép được; `body` không chứa logic nghiệp vụ.
 - [ ] Mọi màn tải dữ liệu dùng `StateView` (idle/loading/loaded/failed + Retry).
@@ -112,6 +128,9 @@ Cổng đỏ → không được chuyển `review`.
 - build: 0 error / 0 warning
 - test: <N> pass, <M> test mới
 - diff: <số file>, đều trong phạm vi
+
+### Skill swiftui-macos (task có UI)
+Reference đã đọc: ... · Điểm đã áp dụng: ... · Ngoại lệ có chủ ý: ...
 
 ### Đối chiếu spec
 | Tiêu chí hoàn thành | Cách verify | Kết quả |

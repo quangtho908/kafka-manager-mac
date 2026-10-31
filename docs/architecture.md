@@ -137,6 +137,7 @@ App Sandbox bật khi đóng gói: cần `com.apple.security.network.client`; tr
 | D3 | Secret trong Keychain | Yêu cầu bảo mật cơ bản |
 | D4 | Swift Testing | Chuẩn mới của Swift |
 | D5 | Xem message dùng consumer không commit offset | Không ảnh hưởng group thật |
+| D6 | **Deployment target macOS 14** (hỗ trợ máy cũ), chốt 2026-10-31 | Yêu cầu người dùng. API mới hơn 14 chỉ dùng sau `#available` kèm phương án thay thế; xem `development.md` |
 
 ### Còn mở
 
@@ -153,7 +154,6 @@ Khuynh hướng: **librdkafka (bọc tự làm hoặc qua `swift-kafka-client` n
 
 **O2 · Đóng gói** — SwiftPM executable không có entitlements/signing. Cần Xcode project (hoặc XcodeGen) với App Sandbox, Developer ID, notarization trước khi phát hành. Quyết định khi gần MVP; trong lúc dev dùng `swift run`.
 
-**O3 · Deployment target** — hiện macOS 14; skill `swiftui-macos` nhắm macOS 26. Chốt theo nhóm người dùng.
 
 **O4 · Schema Registry (P2)** — dùng URLSession tự viết hay thư viện; chọn khi làm tính năng.
 

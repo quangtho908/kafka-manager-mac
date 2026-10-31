@@ -13,6 +13,10 @@ Native macOS Kafka manager (Swift 6 / SwiftUI, SwiftPM). Every entry answers: "W
 
 Every task must satisfy `docs/review-standard.md` before it moves to `review`: run the automated gates (0 warnings, tests pass), self-check sections A–J, and submit the report template in section 4. Spec > review standard > architecture > this file; on conflict, stop and ask the BA.
 
+## UI work
+
+Any task touching SwiftUI/view models MUST follow the `swiftui-macos` skill (`.claude/skills/swiftui-macos/`): load it before coding, read the references matching the task (table in review-standard section I), and list them in the report. The BA reviews UI against the same references.
+
 ## Commands
 
 ```sh
@@ -23,7 +27,7 @@ scripts/dev.sh build | test | run
 
 - Swift 6 strict concurrency: models are `Sendable`; all Kafka I/O goes through actors, never on the main actor.
 - View models are `@Observable` + `@MainActor`; they call Core services only.
-- macOS 14+. SwiftUI first; AppKit (`NSViewRepresentable`) only for things SwiftUI can't do, e.g. large message tables.
+- **Deployment target macOS 14** (support older Macs). No API newer than 14 without `#available` + a working fallback; see `docs/development.md`. SwiftUI first; AppKit (`NSViewRepresentable`) only for things SwiftUI can't do, e.g. large message tables.
 - Credentials (SASL/SSL) go in the Keychain — never in saved connection JSON or UserDefaults.
 
 ## Known gaps
