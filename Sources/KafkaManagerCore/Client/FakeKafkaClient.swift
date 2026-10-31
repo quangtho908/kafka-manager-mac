@@ -4,7 +4,7 @@ import os
 /// In-memory `KafkaClient` for tests and previews, with failure and latency injection.
 public actor FakeKafkaClient: KafkaClient {
     public enum Method: Hashable, Sendable {
-        case connect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup
+        case connect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup, previewOffsetReset, resetOffsets
     }
 
     /// A topic with its partition layout, config and stored messages.
@@ -216,6 +216,49 @@ public actor FakeKafkaClient: KafkaClient {
             throw KafkaError.clusterError(code: Self.unknownGroupCode, message: "Group \(id) not found")
         }
         return detail
+    }
+
+    public func previewOffsetReset(group id: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview {
+        try await begin(.previewOffsetReset)
+        guard let detail = groups[id] else {
+            throw KafkaError.clusterError(code: Self.unknownGroupCode, message: "Group \(id) not found")
+        }
+        var byTime: [PartitionKey: Int64] = [:]
+        if case .timestamp(let date) = target {
+            for lag in detail.lags {
+                let stored = messages[lag.topic]?[lag.partition] ?? []
+                if let first = stored.first(where: { $0.timestamp >= date }) { byTime[PartitionKey(topic: lag.topic, partition: lag.partition)] = first.offset }
+            }
+        }
+        return OffsetResetPlanner.preview(detail: detail, target: target, scope: scope, timestampOffsets: byTime)
+    }
+
+    /// Like the broker: an unknown group is GROUP_ID_NOT_FOUND (69), a group with members is refused with the
+    /// NON_EMPTY_GROUP family (68). A partition the group does not have is reported in the result, not thrown.
+    public func resetOffsets(group id: String, plan: OffsetResetPlan) async throws -> OffsetResetResult {
+        try await begin(.resetOffsets)
+        guard let detail = groups[id] else {
+            throw KafkaError.clusterError(code: Self.unknownGroupCode, message: "Group \(id) not found")
+        }
+        guard OffsetResetRule.refusal(for: detail.groupState) == nil else {
+            throw KafkaError.clusterError(code: KafkaError.nonEmptyGroupCode, message: "Group \(id) is not empty")
+        }
+        var lags = detail.lags
+        var applied = 0
+        var failures: [OffsetResetFailure] = []
+        for item in plan.assignments {
+            guard let index = lags.firstIndex(where: { $0.topic == item.topic && $0.partition == item.partition }) else {
+                failures.append(OffsetResetFailure(topic: item.topic, partition: item.partition, message: "Unknown topic or partition"))
+                continue
+            }
+            let old = lags[index]
+            lags[index] = PartitionLag(topic: old.topic, partition: old.partition, committedOffset: item.offset, startOffset: old.startOffset, endOffset: old.endOffset)
+            applied += 1
+        }
+        groups[id] = GroupDetail(
+            id: detail.id, state: detail.state, members: detail.members, lags: lags,
+            coordinatorId: detail.coordinatorId, coordinatorHost: detail.coordinatorHost, assignor: detail.assignor)
+        return OffsetResetResult(applied: applied, failures: failures)
     }
 
     // MARK: Helpers

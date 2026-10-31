@@ -37,6 +37,84 @@ extension LiveKafkaClient {
         return summaries.sorted { $0.id < $1.id }
     }
 
+    /// Read only. The group is described once (committed offsets and the retained range of every partition it uses);
+    /// for a timestamp target one more ListOffsets asks the broker for the first offset at or after the time.
+    public func previewOffsetReset(group id: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview {
+        let session = try requireSession()
+        let detail = try await describeGroup(id)
+        var byTime: [PartitionKey: Int64] = [:]
+        if case .timestamp(let date) = target {
+            let wanted = detail.lags.filter { scope.includes(topic: $0.topic, partition: $0.partition) }
+                .map { TopicPartition(topic: $0.topic, partition: $0.partition) }
+            do {
+                let milliseconds = Int64((date.timeIntervalSince1970 * 1000).rounded())
+                for (key, offset) in try await offsets(of: wanted, value: milliseconds, session: session, missingIsUnknownTopic: true) {
+                    byTime[PartitionKey(topic: key.topic, partition: key.partition)] = offset
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw map(error, session: session, resource: id)
+            }
+        }
+        return OffsetResetPlanner.preview(detail: detail, target: target, scope: scope, timestampOffsets: byTime)
+    }
+
+    /// AlterConsumerGroupOffsets: commits the plan for the group. No consumer is created and nothing joins the group;
+    /// the broker refuses a group that has members. Per-partition errors come back in the result; if every partition
+    /// failed because the group is active, that is thrown as the mapped non-empty-group error instead.
+    public func resetOffsets(group id: String, plan: OffsetResetPlan) async throws -> OffsetResetResult {
+        let session = try requireSession()
+        guard !plan.isEmpty else { return OffsetResetResult(applied: 0) }
+        do {
+            return try alterOffsets(of: id, plan: plan, session: session)
+        } catch {
+            throw map(error, session: session, resource: id)
+        }
+    }
+
+    private func alterOffsets(of id: String, plan: OffsetResetPlan, session: Session) throws -> OffsetResetResult {
+        let list = try RdPartitionList(capacity: plan.assignments.count)
+        for item in plan.assignments { list.add(topic: item.topic, partition: item.partition, offset: item.offset) }
+        guard let pointer = rd_kafka_AlterConsumerGroupOffsets_new(id, list.pointer) else { throw RdFailure.code(RD_KAFKA_RESP_ERR__INVALID_ARG.rawValue) }
+        let request = RdAdminObject(pointer) { rd_kafka_AlterConsumerGroupOffsets_destroy($0) }
+        var requests: [OpaquePointer?] = [request.pointer]
+        let event = try runAdmin(RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS, expecting: RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT, session: session) { options, queue in
+            requests.withUnsafeMutableBufferPointer { rd_kafka_AlterConsumerGroupOffsets(session.client.pointer, $0.baseAddress, 1, options, queue) }
+        }
+        guard let result = rd_kafka_event_AlterConsumerGroupOffsets_result(event.pointer) else { throw RdFailure.code(RD_KAFKA_RESP_ERR__BAD_MSG.rawValue) }
+        var count = 0
+        guard let groups = rd_kafka_AlterConsumerGroupOffsets_result_groups(result, &count), count >= 1, let group = groups[0] else {
+            throw RdFailure.code(RD_KAFKA_RESP_ERR__BAD_MSG.rawValue)
+        }
+        if let error = rd_kafka_group_result_error(group) {
+            let code = rd_kafka_error_code(error)
+            if code != RD_KAFKA_RESP_ERR_NO_ERROR { throw RdFailure.code(code.rawValue) }
+        }
+        var applied = 0
+        var failed: [(topic: String, partition: Int, code: Int32)] = []
+        if let partitions = rd_kafka_group_result_partitions(group) {
+            for index in 0..<Int(partitions.pointee.cnt) {
+                let item = partitions.pointee.elems[index]
+                if item.err == RD_KAFKA_RESP_ERR_NO_ERROR {
+                    applied += 1
+                } else {
+                    failed.append((String(cString: item.topic), Int(item.partition), item.err.rawValue))
+                }
+            }
+        }
+        if applied == 0, let first = failed.first,
+           LiveErrorMapping.map(code: first.code, host: "", resource: id, detail: nil).isNonEmptyGroup {
+            throw RdFailure.code(first.code)
+        }
+        let failures = failed.map { item in
+            OffsetResetFailure(
+                topic: item.topic, partition: item.partition,
+                message: (map(RdFailure.code(item.code), session: session, resource: item.topic) as? KafkaError)?.userMessage ?? String(localized: "The cluster returned an error."))
+        }
+        return OffsetResetResult(applied: applied, failures: failures)
+    }
+
     /// DescribeConsumerGroups (state, coordinator, assignor, members with parsed assignments), ListConsumerGroupOffsets
     /// (all committed offsets) and two batched ListOffsets calls (start and end of every involved partition).
     public func describeGroup(_ id: String) async throws -> GroupDetail {
@@ -160,10 +238,18 @@ extension LiveKafkaClient {
     func offsets(
         of partitions: [TopicPartition], spec: rd_kafka_OffsetSpec_t, session: Session, missingIsUnknownTopic: Bool = false
     ) async throws -> [TopicPartition: Int64] {
+        try await offsets(of: partitions, value: Int64(spec.rawValue), session: session, missingIsUnknownTopic: missingIsUnknownTopic)
+    }
+
+    /// `value` is a special spec (earliest, latest) or a timestamp in milliseconds; a timestamp with no message at or
+    /// after it answers -1.
+    func offsets(
+        of partitions: [TopicPartition], value: Int64, session: Session, missingIsUnknownTopic: Bool = false
+    ) async throws -> [TopicPartition: Int64] {
         var result: [TopicPartition: Int64] = [:]
         var pending = partitions
         for attempt in 0..<Self.watermarkAttempts where !pending.isEmpty {
-            let answers = try requestOffsets(pending, spec: spec, session: session)
+            let answers = try requestOffsets(pending, value: value, session: session)
             var retry: [TopicPartition] = []
             for (key, answer) in answers {
                 switch answer.error {
@@ -182,11 +268,11 @@ extension LiveKafkaClient {
     }
 
     private func requestOffsets(
-        _ partitions: [TopicPartition], spec: rd_kafka_OffsetSpec_t, session: Session
+        _ partitions: [TopicPartition], value: Int64, session: Session
     ) throws -> [TopicPartition: (offset: Int64, error: Int32)] {
         guard !partitions.isEmpty else { return [:] }
         let list = try RdPartitionList(capacity: partitions.count)
-        for key in partitions { list.add(topic: key.topic, partition: key.partition, offset: Int64(spec.rawValue)) }
+        for key in partitions { list.add(topic: key.topic, partition: key.partition, offset: value) }
         let event = try runAdmin(RD_KAFKA_ADMIN_OP_LISTOFFSETS, expecting: RD_KAFKA_EVENT_LISTOFFSETS_RESULT, session: session) { options, queue in
             rd_kafka_ListOffsets(session.client.pointer, list.pointer, options, queue)
         }

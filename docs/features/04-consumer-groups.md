@@ -56,4 +56,18 @@ UI hiển thị chữ "no offset" khi `!hasCommittedOffset` (kèm lag = end − 
 
 ## Làm sau (P2)
 
-Reset offset (earliest/latest/timestamp/offset) có preview và xác nhận; xoá group; biểu đồ lag theo thời gian.
+Biểu đồ lag theo thời gian. (Reset offset đã làm ở T70, xem bên dưới; xoá group: chưa làm, theo quyết định của người dùng.)
+
+## Reset offset (T70)
+
+Đổi offset đã commit của một group. Chỉ làm được khi group **không còn thành viên** (`Empty` hoặc `Dead`); group đang chạy bị từ chối với thông báo "Stop the group's consumers first; offsets can only be changed while the group has no active members."
+
+**Lối vào:** nút/menu "Reset Offsets…" ở header chi tiết group và menu chuột phải trong danh sách, với các preset *Skip to Latest (clear lag)*, *Rewind to Earliest*, *To Time…*, *To Offset…*. Tắt (có tooltip lý do) khi cluster read-only, group đang có thành viên, hoặc chưa tải xong.
+
+**Đích (`OffsetResetTarget`):** latest = log end; earliest = log start; timestamp = offset đầu tiên có thời gian ≥ mốc (không có message nào → log end); offset = số cụ thể, bị kẹp vào `[start, end]` và đánh dấu *Clamped*. **Phạm vi (`OffsetResetScope`):** cả group, một số topic, hoặc một topic + partition.
+
+**Preview:** bảng Topic · Partition · Current · New · Lag trước→sau · Changed/Unchanged/Clamped, tổng "Lag X → Y across N partitions". Tính bằng `OffsetResetPlanner` (hàm thuần); chỉ đọc, không ghi gì lên broker. Partition chưa từng commit coi như đổi (sẽ có commit mới).
+
+**Áp dụng:** qua `DestructiveConfirmation` (hiện tên cluster + môi trường, gõ lại group id). Core: `KafkaClient.resetOffsets(group:plan:) -> OffsetResetResult` là lệnh ghi nên `GuardedKafkaClient` chặn khi read-only (có trong bảng phân loại ghi). Live dùng `rd_kafka_AlterConsumerGroupOffsets`; lỗi từng partition được trả về trong `failures` (lỗi một phần), `isComplete` chỉ đúng khi không có lỗi. Broker từ chối vì group đang hoạt động (NON_EMPTY_GROUP, UNKNOWN_MEMBER_ID, ILLEGAL_GENERATION, GROUP_SUBSCRIBED_TO_TOPIC, REBALANCE_IN_PROGRESS) → `.clusterError(code: 68)` / `isNonEmptyGroup`. Sau khi áp dụng thành công, chi tiết group và danh sách được tải lại.
+
+**Test:** planner (mọi đích, kẹp, chưa commit, lọc phạm vi, tính lag, bão hoà), Guarded, Fake, view model, ánh xạ lỗi, và itest trên broker thật chỉ với topic `km-itest-*` / group `km-itest-g-*` do test tự tạo (helper `requireTestOwnedGroup` từ chối mọi group khác).

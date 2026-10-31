@@ -57,6 +57,9 @@ public final class GroupListViewModel {
     /// Group id.
     public var selection: String?
 
+    /// The reset sheet being shown, if any.
+    public var reset: OffsetResetViewModel?
+
     /// Total lag per group, for the groups whose lag was loaded on request. Cleared whenever the list is reloaded.
     public private(set) var lagTotals: [String: Int64] = [:]
     public private(set) var lagLoading = false
@@ -143,6 +146,31 @@ public final class GroupListViewModel {
         case let error as ClusterSessionError: error.userMessage
         default: String(localized: "Couldn't load the consumer groups.")
         }
+    }
+
+    // MARK: Reset offsets
+
+    public var writeGate: WriteGate { WriteGate(isReadOnly: session.isReadOnly) }
+
+    /// Why a reset is not offered for `group` (from the loaded list); nil when it is.
+    public func resetDisabledReason(of group: String) -> String? {
+        if let reason = writeGate.disabledReason { return reason }
+        guard let summary = state.value?.first(where: { $0.id == group }) else { return String(localized: "This group is no longer listed") }
+        return OffsetResetRule.refusal(for: summary.groupState)
+    }
+
+    /// Opens the reset sheet for `group` with `target` preselected. Nothing is offered on a read-only cluster or for a
+    /// group with members.
+    public func requestReset(of group: String, target: OffsetTargetKind) {
+        guard resetDisabledReason(of: group) == nil else { return }
+        let groupState = state.value?.first(where: { $0.id == group })?.groupState ?? .empty
+        reset = OffsetResetViewModel(
+            session: session, groupId: group, groupState: groupState, target: target,
+            onApplied: { [weak self] in
+                self?.lagTotals[group] = nil
+                await self?.detail?.refresh()
+                await self?.refresh()
+            })
     }
 
     // MARK: Detail

@@ -100,7 +100,7 @@ private struct GroupDetailHost: View {
     var body: some View {
         Group {
             if let model, model.groupId == group {
-                GroupDetailView(model: model).id(group)
+                GroupDetailView(model: model, reset: ResetControl(gate: list.writeGate, open: { list.requestReset(of: group, target: $0) })).id(group)
             } else {
                 Color.clear
             }

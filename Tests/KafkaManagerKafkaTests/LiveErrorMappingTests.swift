@@ -53,6 +53,18 @@ struct LiveErrorMappingTests {
         #expect(!Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE).isUnknownGroup)
     }
 
+    @Test(arguments: [
+        RD_KAFKA_RESP_ERR_NON_EMPTY_GROUP, RD_KAFKA_RESP_ERR_UNKNOWN_MEMBER_ID, RD_KAFKA_RESP_ERR_ILLEGAL_GENERATION,
+        RD_KAFKA_RESP_ERR_GROUP_SUBSCRIBED_TO_TOPIC, RD_KAFKA_RESP_ERR_REBALANCE_IN_PROGRESS,
+    ])
+    func activeGroupRejectionsAreRecognisedAsNonEmpty(code: rd_kafka_resp_err_t) {
+        let error = Self.map(code)
+        #expect(error.isNonEmptyGroup)
+        #expect(error == .clusterError(code: KafkaError.nonEmptyGroupCode, message: error.diagnosticText))
+        #expect(error.userMessage == "Stop the group's consumers first; offsets can only be changed while the group has no active members.")
+        #expect(!Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE).isNonEmptyGroup)
+    }
+
     @Test func unknownCodesBecomeClusterErrorsWithTheirCode() {
         let error = Self.map(RD_KAFKA_RESP_ERR_OFFSET_OUT_OF_RANGE)
         guard case .clusterError(let code, let message) = error else {

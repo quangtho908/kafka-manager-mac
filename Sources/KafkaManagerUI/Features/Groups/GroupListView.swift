@@ -60,6 +60,7 @@ public struct GroupListView: View {
         }
         .onChange(of: refreshToken) { refreshCount += 1 }
         .focusedSceneValue(\.findAction, findAction)
+        .sheet(item: $model.reset) { ResetOffsetsSheet(model: $0) }
     }
 
     private var findAction: (() -> Void)? { { searchFocused = true } }
@@ -119,6 +120,14 @@ public struct GroupListView: View {
                 .width(min: Metrics.lagMin)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .contextMenu(forSelectionType: String.self) { ids in
+            if let id = ids.first, ids.count == 1 {
+                Menu("Reset Offsets") {
+                    ResetPresetButtons(open: { model.requestReset(of: id, target: $0) })
+                }
+                .disabled(model.resetDisabledReason(of: id) != nil)
+            }
+        }
     }
 
     @ViewBuilder private func lagCell(_ id: String) -> some View {

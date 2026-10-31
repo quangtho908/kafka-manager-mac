@@ -39,6 +39,11 @@ public actor GuardedKafkaClient: KafkaClient {
         try await inner.deleteTopic(name)
     }
 
+    public func resetOffsets(group: String, plan: OffsetResetPlan) async throws -> OffsetResetResult {
+        try blockIfReadOnly()
+        return try await inner.resetOffsets(group: group, plan: plan)
+    }
+
     // MARK: Reads (passthrough)
 
     public func connect(_ cluster: ClusterConnection, credentials: Credentials?) async throws {
@@ -71,6 +76,10 @@ public actor GuardedKafkaClient: KafkaClient {
 
     public func describeGroup(_ id: String) async throws -> GroupDetail {
         try await inner.describeGroup(id)
+    }
+
+    public func previewOffsetReset(group: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview {
+        try await inner.previewOffsetReset(group: group, target: target, scope: scope)
     }
 
     private func blockIfReadOnly() throws {

@@ -62,3 +62,8 @@ func deleteTestGroup(bootstrap: String, group: String) {
     requests.withUnsafeMutableBufferPointer { rd_kafka_DeleteGroups(client.pointer, $0.baseAddress, 1, options.pointer, queue.pointer) }
     _ = queue.poll(timeoutMs: 11_000)
 }
+
+/// Every offset reset the tests run goes through this: it refuses any group that is not one the test created itself.
+func requireTestOwnedGroup(_ group: String) throws {
+    guard group.hasPrefix("km-itest-g-"), group.count > "km-itest-g-".count else { throw RdFailure.config("not a test-owned group: \(group)") }
+}

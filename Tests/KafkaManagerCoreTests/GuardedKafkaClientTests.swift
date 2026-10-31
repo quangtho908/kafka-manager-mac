@@ -7,11 +7,11 @@ import os
 /// method breaks this file until the method is added to `Method` and classified below.
 final class SpyKafkaClient: KafkaClient, Sendable {
     enum Method: CaseIterable, Hashable, Sendable {
-        case connect, disconnect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup
+        case connect, disconnect, describeCluster, listTopics, describeTopic, createTopic, deleteTopic, fetchMessages, listGroups, describeGroup, previewOffsetReset, resetOffsets
     }
 
     /// Every write method; the guard must block these while read-only.
-    static let writes: Set<Method> = [.createTopic, .deleteTopic]
+    static let writes: Set<Method> = [.createTopic, .deleteTopic, .resetOffsets]
 
     let wrapped: FakeKafkaClient
     private let counts = OSAllocatedUnfairLock(initialState: [Method: Int]())
@@ -38,6 +38,14 @@ final class SpyKafkaClient: KafkaClient, Sendable {
     }
     func listGroups() async throws -> [GroupSummary] { record(.listGroups); return try await wrapped.listGroups() }
     func describeGroup(_ id: String) async throws -> GroupDetail { record(.describeGroup); return try await wrapped.describeGroup(id) }
+    func previewOffsetReset(group: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview {
+        record(.previewOffsetReset)
+        return try await wrapped.previewOffsetReset(group: group, target: target, scope: scope)
+    }
+    func resetOffsets(group: String, plan: OffsetResetPlan) async throws -> OffsetResetResult {
+        record(.resetOffsets)
+        return try await wrapped.resetOffsets(group: group, plan: plan)
+    }
 }
 
 private let cluster = ClusterConnection(name: "prod-eu", bootstrapServers: "broker:9092")
@@ -75,6 +83,8 @@ private func invoke(_ method: SpyKafkaClient.Method, on client: some KafkaClient
     case .fetchMessages: _ = try await collect(client.fetchMessages(MessageQuery(topic: "orders", start: .earliest, limit: 5)))
     case .listGroups: _ = try await client.listGroups()
     case .describeGroup: _ = try await client.describeGroup("orders-service")
+    case .previewOffsetReset: _ = try await client.previewOffsetReset(group: "orders-service", target: .latest, scope: .wholeGroup)
+    case .resetOffsets: _ = try await client.resetOffsets(group: "payments-service", plan: OffsetResetPlan(assignments: []))
     }
 }
 
@@ -110,9 +120,17 @@ func readOnlyBlocksExactlyTheWriteMethods(method: SpyKafkaClient.Method) async t
     #expect(try await fixture.fake.listTopics().contains { $0.name == "fresh" } == false)
 }
 
+@Test func readOnlyBlocksResetOffsetsAndLeavesTheCommitsAlone() async throws {
+    let fixture = try await Fixture(readOnly: true)
+    let preview = try await fixture.guarded.previewOffsetReset(group: "payments-service", target: .latest, scope: .wholeGroup)
+    await #expect(throws: KafkaError.readOnly(clusterName: "prod-eu")) { try await fixture.guarded.resetOffsets(group: "payments-service", plan: preview.plan) }
+    #expect(fixture.spy.count(.resetOffsets) == 0)
+    #expect(try await fixture.fake.describeGroup("payments-service").lags.first?.committedOffset == 50)
+}
+
 @Test func writeMethodClassificationCoversEveryMethod() {
     #expect(SpyKafkaClient.writes.isSubset(of: Set(SpyKafkaClient.Method.allCases)))
-    #expect(SpyKafkaClient.writes == [.createTopic, .deleteTopic])
+    #expect(SpyKafkaClient.writes == [.createTopic, .deleteTopic, .resetOffsets])
 }
 
 // MARK: Passthrough

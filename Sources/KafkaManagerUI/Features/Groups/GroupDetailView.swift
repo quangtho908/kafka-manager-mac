@@ -4,6 +4,8 @@ import KafkaManagerCore
 /// Header plus Lag / Members tabs for one consumer group.
 struct GroupDetailView: View {
     @Bindable var model: GroupDetailViewModel
+    /// nil where resetting is not wired (previews); the list model owns the reset sheet.
+    let reset: ResetControl?
 
     @State private var refreshCount = 0
     /// Topics the user folded; everything else is open.
@@ -20,6 +22,11 @@ struct GroupDetailView: View {
         static let memberMin: Double = 100
         static let intervalWidth: Double = 70
         static let hostMin: Double = 100
+    }
+
+    init(model: GroupDetailViewModel, reset: ResetControl? = nil) {
+        self.model = model
+        self.reset = reset
     }
 
     var body: some View {
@@ -77,10 +84,26 @@ struct GroupDetailView: View {
                 }
                 .help(Text("Refresh this group"))
                 .disabled(model.isRefreshing || model.state.isLoading)
+                if let reset { resetMenu(reset) }
             }
             if let info = model.header { facts(info) }
         }
         .padding(Metrics.padding)
+    }
+
+    /// Icon and words; disabled with the reason as tooltip for a read-only cluster or a group that still has members.
+    private func resetMenu(_ reset: ResetControl) -> some View {
+        let reason = reset.gate.disabledReason
+            ?? model.header.flatMap { OffsetResetRule.refusal(for: $0.state) }
+            ?? (model.header == nil ? String(localized: "Loading the group…") : nil)
+        return Menu {
+            ResetPresetButtons(open: reset.open)
+        } label: {
+            Label("Reset Offsets…", systemImage: "arrow.counterclockwise")
+        }
+        .fixedSize()
+        .help(Text(reason ?? String(localized: "Move the committed offsets of this group")))
+        .disabled(reason != nil)
     }
 
     private var autoRefreshControls: some View {

@@ -28,6 +28,11 @@ public enum LiveErrorMapping {
         case code32(RD_KAFKA_RESP_ERR_UNKNOWN_TOPIC_OR_PART), code32(RD_KAFKA_RESP_ERR__UNKNOWN_TOPIC),
              code32(RD_KAFKA_RESP_ERR__UNKNOWN_PARTITION):
             return .unknownTopic(resource)
+        // Every way the broker says "this group has members / is rebalancing": a reset or delete cannot proceed.
+        case code32(RD_KAFKA_RESP_ERR_NON_EMPTY_GROUP), code32(RD_KAFKA_RESP_ERR_UNKNOWN_MEMBER_ID),
+             code32(RD_KAFKA_RESP_ERR_ILLEGAL_GENERATION), code32(RD_KAFKA_RESP_ERR_GROUP_SUBSCRIBED_TO_TOPIC),
+             code32(RD_KAFKA_RESP_ERR_REBALANCE_IN_PROGRESS):
+            return .clusterError(code: KafkaError.nonEmptyGroupCode, message: sanitize(detail, code: code, secrets: secrets))
         case code32(RD_KAFKA_RESP_ERR_TOPIC_ALREADY_EXISTS):
             return .topicAlreadyExists(resource)
         case code32(RD_KAFKA_RESP_ERR_TOPIC_EXCEPTION):

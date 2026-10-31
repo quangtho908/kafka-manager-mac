@@ -40,6 +40,8 @@ public enum KafkaError: Error, Sendable, Equatable {
             String(localized: "The number of partitions is invalid. Use 1 or more.")
         case .clusterError(let code, _) where code == Self.invalidReplicationFactorCode:
             String(localized: "The replication factor is invalid. Use 1 or more, and no more than the number of brokers.")
+        case .clusterError where isNonEmptyGroup:
+            OffsetResetRule.activeMembersMessage
         case .clusterError where isUnknownGroup:
             String(localized: "That consumer group doesn't exist. It may have been deleted.")
         case .clusterError(let code, _):

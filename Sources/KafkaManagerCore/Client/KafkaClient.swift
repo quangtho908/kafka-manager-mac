@@ -19,4 +19,9 @@ public protocol KafkaClient: Sendable {
     // Consumer groups
     func listGroups() async throws -> [GroupSummary]
     func describeGroup(_ id: String) async throws -> GroupDetail
+    /// Read only: what resetting the group's committed offsets to `target` would do. Changes nothing.
+    func previewOffsetReset(group: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview
+    /// Write operation: commits the plan's offsets for the group. The broker refuses a group that has members
+    /// (`KafkaError.isNonEmptyGroup`); per-partition failures come back in the result.
+    func resetOffsets(group: String, plan: OffsetResetPlan) async throws -> OffsetResetResult
 }

@@ -33,6 +33,10 @@ private final class RecordingClient: KafkaClient, Sendable {
     func fetchMessages(_ query: MessageQuery) -> AsyncThrowingStream<KafkaMessage, Error> { wrapped.fetchMessages(query) }
     func listGroups() async throws -> [GroupSummary] { try await wrapped.listGroups() }
     func describeGroup(_ id: String) async throws -> GroupDetail { try await wrapped.describeGroup(id) }
+    func previewOffsetReset(group: String, target: OffsetResetTarget, scope: OffsetResetScope) async throws -> OffsetResetPreview {
+        try await wrapped.previewOffsetReset(group: group, target: target, scope: scope)
+    }
+    func resetOffsets(group: String, plan: OffsetResetPlan) async throws -> OffsetResetResult { try await wrapped.resetOffsets(group: group, plan: plan) }
 }
 
 private func profile() -> ClusterConnection {
