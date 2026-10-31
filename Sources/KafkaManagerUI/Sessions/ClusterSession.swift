@@ -66,7 +66,11 @@ public final class ClusterSession {
 
     /// Connects on demand and returns the client. Counts as activity. Concurrent callers share one connect.
     public func ensureConnected() async throws -> any KafkaClient {
-        if status != .connected { await connect() }
+        if status != .connected {
+            await connect()
+            // A disconnect can abandon the attempt we waited on; ask once more instead of failing.
+            if status == .idle { await connect() }
+        }
         guard status == .connected, let guarded else { throw lastFailure ?? ClusterSessionError.notConnected }
         touch()
         return guarded
@@ -87,11 +91,14 @@ public final class ClusterSession {
         let task = Task { await performConnect() }
         connectTask = task
         await task.value
-        connectTask = nil
+        // A disconnect may already have replaced or cleared it; only clear our own.
+        if connectTask == task { connectTask = nil }
     }
 
     public func disconnect() async {
         generation += 1
+        // The abandoned attempt keeps running but its result is discarded; new requests must not wait for it.
+        connectTask = nil
         expiry?.cancel()
         expiry = nil
         let client = guarded

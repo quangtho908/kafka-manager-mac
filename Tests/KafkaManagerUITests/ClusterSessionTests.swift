@@ -261,6 +261,41 @@ struct ClusterSessionTests {
         #expect(session.status == .idle)
         #expect(throws: ClusterSessionError.notConnected) { _ = try session.client() }
     }
+
+    @Test func connectAfterDisconnectDuringAConnectReallyConnects() async throws {
+        let probe = FactoryProbe(make: { FakeKafkaClient(latency: .milliseconds(20)) })
+        let session = makeSession(probe: probe)
+        let first = Task { await session.connect() }
+        await expectSettles { session.status == .connecting }
+        await session.disconnect()
+        // The abandoned attempt may still be running; a new request must not just wait for it.
+        await session.connect()
+        #expect(session.status == .connected)
+        #expect(probe.callCount == 2)
+        await first.value
+        #expect(session.status == .connected)
+    }
+
+    @Test func ensureConnectedAfterDisconnectDuringAConnectReturnsAClient() async throws {
+        let probe = FactoryProbe(make: { FakeKafkaClient(latency: .milliseconds(20)) })
+        let session = makeSession(probe: probe)
+        let first = Task { await session.connect() }
+        await expectSettles { session.status == .connecting }
+        await session.disconnect()
+        _ = try await session.ensureConnected()
+        #expect(session.status == .connected)
+        await first.value
+    }
+
+    @Test func aWaiterOfAnAbandonedConnectRetriesInsteadOfFailing() async throws {
+        let probe = FactoryProbe(make: { FakeKafkaClient(latency: .milliseconds(20)) })
+        let session = makeSession(probe: probe)
+        let waiter = Task { try await session.ensureConnected() }
+        await expectSettles { session.status == .connecting }
+        await session.disconnect()
+        _ = try await waiter.value
+        #expect(session.status == .connected)
+    }
 }
 
 @Suite("ClusterSessions") @MainActor
