@@ -38,6 +38,8 @@ struct MessagesView: View {
             resultsAndDetail
             statusBar
         }
+        // Fill the column and start at the top; without this an empty result area lets the whole tab float to the middle.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task(id: runToken) {
             guard runToken > 0 else { return }
             await model.fetch()
@@ -171,6 +173,7 @@ struct MessagesView: View {
             ContentUnavailableView(
                 "No messages loaded", systemImage: "tray",
                 description: Text("Choose where to start and press Fetch."))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .fetching:
             ProgressView("Fetching…").frame(maxWidth: .infinity, maxHeight: .infinity)
         case .finished:

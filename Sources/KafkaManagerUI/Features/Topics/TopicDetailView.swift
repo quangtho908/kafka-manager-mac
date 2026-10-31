@@ -59,6 +59,7 @@ struct TopicDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         // Loads once per topic; a changed count is an explicit refresh.
         .task(id: refreshCount) {
             if refreshCount == 0 { await model.loadIfNeeded() } else { await model.refresh() }
