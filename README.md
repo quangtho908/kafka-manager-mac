@@ -38,6 +38,10 @@ to Applications.
 
 ### Connections
 
+![Connection list with Local, Staging and Production profiles and the read-only banner](docs/images/connections-list.png)
+
+The connection list with one profile per environment.
+
 A connection is a saved profile. The form has:
 
 | Field | Notes |
