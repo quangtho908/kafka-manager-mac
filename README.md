@@ -4,7 +4,7 @@ A native macOS app (Swift, SwiftUI) for working with Apache Kafka: browse cluste
 groups, produce messages, and reset consumer group offsets. It talks to brokers through a statically linked
 librdkafka, so there is nothing to install next to the app.
 
-The app icon is the user's artwork, stored in `resources/AppIcon-1024.png`.
+The app icon source is `resources/AppIcon-1024.png`.
 
 ## Features
 
