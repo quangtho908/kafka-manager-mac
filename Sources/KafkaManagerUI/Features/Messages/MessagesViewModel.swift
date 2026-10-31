@@ -34,6 +34,7 @@ public final class MessagesViewModel {
     public static let defaultLatestCount = 100
     public static let defaultFlushInterval: Duration = .milliseconds(100)
     /// Total key+value bytes kept in memory; reaching it ends the fetch (`.sizeLimit`).
+    static let rowsPerExtraInterval = 500
     public static let defaultByteBudget = 64 * 1024 * 1024
 
     // MARK: Query form
@@ -184,9 +185,10 @@ public final class MessagesViewModel {
     }
 
     private func run(_ query: MessageQuery, id: Int) async {
-        let flusher = Task { [weak self, sleep, flushInterval] in
+        let flusher = Task { [weak self, sleep] in
             while !Task.isCancelled {
-                do { try await sleep(flushInterval) } catch { return }
+                guard let wait = self?.nextFlushDelay() else { return }
+                do { try await sleep(wait) } catch { return }
                 guard let self, !Task.isCancelled else { return }
                 self.flush(id: id)
             }
@@ -229,6 +231,12 @@ public final class MessagesViewModel {
             if Task.isCancelled { return .finished(.stopped) }
             return .failed(Self.message(for: error))
         }
+    }
+
+    /// Every publish makes the table diff and re-sort all rows, so the wait grows with the rows already shown:
+    /// the base interval at first, then one extra interval per `rowsPerExtraInterval` rows.
+    private func nextFlushDelay() -> Duration {
+        flushInterval * (1 + rows.count / Self.rowsPerExtraInterval)
     }
 
     /// Moves buffered rows into the published list. Does nothing for a fetch that was replaced.

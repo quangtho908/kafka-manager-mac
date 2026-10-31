@@ -8,7 +8,7 @@ public struct MessageID: Hashable, Sendable {
 
 /// A fetched message plus the short strings the table needs, computed once when it arrives. The full payload decode
 /// happens only for the selected row.
-public struct MessageRow: Identifiable, Sendable {
+public struct MessageRow: Identifiable, Sendable, Equatable {
     public var id: MessageID { MessageID(partition: message.partition, offset: message.offset) }
     public let message: KafkaMessage
     public let keyPreview: PayloadPreview
@@ -24,6 +24,10 @@ public struct MessageRow: Identifiable, Sendable {
     }
 
     public var isTombstone: Bool { message.value == nil }
+
+    /// Rows are immutable once fetched, so identity is equality. SwiftUI compares the whole table's rows on every
+    /// update; the default memberwise comparison would walk every payload.
+    public static func == (lhs: MessageRow, rhs: MessageRow) -> Bool { lhs.id == rhs.id }
 }
 
 public enum MessageSortKey: Sendable, Hashable, CaseIterable {
