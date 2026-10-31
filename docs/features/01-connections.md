@@ -35,6 +35,7 @@ CREATE TABLE connections (
 
 - Mở DB lười ở lần đọc đầu (đọc danh sách profile để vẽ sidebar), `journal_mode=WAL`, `foreign_keys=ON`; câu lệnh dùng prepared statement + bind tham số (không nối chuỗi).
 - File hỏng/không mở được: đổi tên thành `kafkamanager.sqlite.corrupt-<timestamp>`, tạo DB mới, báo lỗi cho UI (không crash, không mất file cũ).
+- Ô password để trống khi lưu = **xoá secret** (`deletePassword`); không lưu chuỗi rỗng. Khi sửa profile, để trống ô password nghĩa là giữ nguyên (UI hiển thị "đã lưu"), có nút "Xoá password" riêng.
 - Secret: Keychain (`kSecClassGenericPassword`, service `KafkaManager`, account = profile id). `SecretStore` protocol để test bằng bản in-memory. **Không bao giờ** ghi password vào SQLite.
 - `ClusterConnection` mở rộng (đã có từ T01): `environment`, `security`, `saslMechanism`, `username` (không có password).
 
